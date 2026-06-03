@@ -1,0 +1,31 @@
+# Credenciales y secretos — NUNCA subir
+local-infrastructure/.env
+local-infrastructure/serviceAccountKey.json
+local-infrastructure/*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Base de datos local
+local-infrastructure/database/*.db
+local-infrastructure/database/*.sqlite
+
+# Node / Firebase tools
+node_modules/
+.firebase/
+firebase-debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

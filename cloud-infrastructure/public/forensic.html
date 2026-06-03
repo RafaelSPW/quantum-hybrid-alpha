@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análisis Forense de Documentos — AHC Intelligence</title>
+  <link rel="icon" type="image/png" href="logoqahc.png" />
+  <meta property="og:title" content="AHC Intelligence — Análisis Forense" />
+  <meta property="og:description" content="Autenticación forense de documentos: detección de edición digital, metadatos, tipografía y análisis IA en 4 capas." />
+  <meta property="og:image" content="https://agenteahc.web.app/logoqahc.png" />
+  <style>
+    :root {
+      --navy:      #ffffff;
+      --navy-mid:  #f4f6f9;
+      --navy-lite: #e8ecf2;
+      --border:    #c8d4e0;
+      --accent:    #1a56a0;
+      --accent-h:  #1464bf;
+      --text:      #1a2535;
+      --text-dim:  #3a5068;
+      --text-head: #040d18;
+      --green:     #d4f0e0;
+      --green-txt: #1a6e3a;
+      --amber:     #fff3cc;
+      --amber-txt: #8a6000;
+      --red:       #fde8e8;
+      --red-txt:   #b02020;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--navy); color: var(--text); min-height: 100vh; line-height: 1.6; }
+
+    header {
+      background: var(--navy-mid); padding: 0 40px; height: 62px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid var(--accent);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 14px; }
+    .auth-bar { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: var(--text-dim); }
+    .btn { padding: 8px 20px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .15s; }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-secondary:hover { color: var(--text-head); }
+    .creditos-badge {
+      display: none; padding: 4px 12px; background: var(--navy-lite);
+      border: 1px solid var(--border); border-radius: 20px;
+      font-size: 0.8rem; font-weight: 700;
+    }
+
+    .layout { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 62px); }
+
+    /* ── PANEL IZQUIERDO ── */
+    .panel-form {
+      background: var(--navy-mid); border-right: 1px solid var(--border);
+      padding: 32px 28px; overflow-y: auto;
+    }
+    .panel-form .back { color: var(--accent); text-decoration: none; font-size: 0.9rem; margin-bottom: 24px; display: block; font-weight: 500; }
+    .panel-form .back:hover { color: var(--accent-h); }
+    .panel-titulo { font-size: 0.75rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border); }
+
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 7px; }
+
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: 6px;
+      padding: 28px 16px; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s; background: var(--navy);
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--navy-lite); }
+    .drop-zone-icon  { font-size: 2rem; margin-bottom: 10px; }
+    .drop-zone-title { font-size: 0.95rem; font-weight: 600; color: var(--text-head); margin-bottom: 6px; }
+    .drop-zone-hint  { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; }
+    .drop-zone-hint span { color: var(--accent); font-weight: 600; cursor: pointer; }
+    .drop-zone-hint span:hover { color: var(--accent-h); }
+
+    .file-preview {
+      display: none; background: var(--navy); border: 1px solid var(--border);
+      border-radius: 6px; padding: 12px 14px;
+      align-items: center; gap: 10px;
+    }
+    .file-preview-icon  { font-size: 1.4rem; flex-shrink: 0; }
+    .file-preview-name  { flex: 1; font-size: 0.88rem; font-weight: 600; color: var(--text-head); word-break: break-all; }
+    .file-preview-size  { font-size: 0.78rem; color: var(--text-dim); flex-shrink: 0; }
+    .file-remove        { cursor: pointer; color: var(--text-dim); font-size: 0.9rem; flex-shrink: 0; padding: 2px 6px; border-radius: 3px; }
+    .file-remove:hover  { background: var(--red); color: var(--red-txt); }
+
+    .capas-info {
+      background: var(--navy); border: 1px solid var(--border); border-radius: 6px;
+      padding: 16px 18px; margin-bottom: 20px;
+    }
+    .capas-info-titulo { font-size: 0.72rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; }
+    .capa-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 9px; font-size: 0.83rem; color: var(--text-dim); line-height: 1.5; }
+    .capa-row:last-child { margin-bottom: 0; }
+    .capa-num { background: var(--accent); color: #fff; font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 3px; flex-shrink: 0; margin-top: 1px; }
+
+    .btn-analizar {
+      width: 100%; padding: 13px; background: var(--accent); color: #fff;
+      border: none; border-radius: 4px; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; transition: background .15s; margin-top: 4px;
+    }
+    .btn-analizar:hover { background: var(--accent-h); }
+
+    .estado-msg { font-size: 0.85rem; color: var(--text-dim); margin-top: 12px; min-height: 20px; }
+    .estado-msg.activo { color: var(--accent); }
+
+    .costo-hint { font-size: 0.78rem; color: var(--text-dim); text-align: center; margin-top: 8px; }
+    .costo-hint strong { color: var(--accent); }
+
+    /* ── PANEL DERECHO ── */
+    .panel-result {
+      padding: 32px 36px; overflow-y: auto;
+      background: var(--navy);
+    }
+
+    .placeholder-msg {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 14px; text-align: center; color: var(--text-dim);
+      min-height: 400px;
+    }
+    .placeholder-icon { font-size: 3rem; opacity: .15; }
+    .placeholder-msg p { font-size: 0.95rem; max-width: 340px; line-height: 1.7; }
+
+    .reporte-container { display: none; }
+
+    .reporte-header { margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .reporte-label  { font-size: 0.72rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+    .reporte-nombre { font-size: 1.6rem; font-weight: 700; color: var(--text-head); word-break: break-all; }
+    .reporte-meta   { font-size: 0.82rem; color: var(--text-dim); margin-top: 6px; }
+    .mock-badge     { display: inline-block; background: #fff3cc; color: #8a6000; font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 3px; margin-left: 8px; vertical-align: middle; letter-spacing: 1px; }
+
+    .seccion { background: var(--navy-mid); border: 1px solid var(--border); border-radius: 6px; padding: 24px 26px; margin-bottom: 16px; }
+    .sec-titulo { font-size: 0.72rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+    /* Verdict */
+    .forense-verdict       { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 4px; font-size: 0.9rem; font-weight: 700; margin-bottom: 16px; }
+    .forense-autentico     { background: var(--green); color: var(--green-txt); border-left: 3px solid var(--green-txt); }
+    .forense-alterado      { background: var(--red); color: var(--red-txt); border-left: 3px solid var(--red-txt); }
+    .forense-pendiente     { background: var(--amber); color: var(--amber-txt); border-left: 3px solid var(--amber-txt); }
+
+    /* Score bar */
+    .score-wrap  { display: flex; align-items: center; gap: 14px; }
+    .score-track { flex: 1; height: 10px; background: var(--navy-lite); border-radius: 5px; overflow: hidden; }
+    .score-fill  { height: 100%; border-radius: 5px; transition: width .6s ease; }
+    .score-val   { font-size: 1.1rem; font-weight: 800; flex-shrink: 0; min-width: 80px; text-align: right; }
+
+    /* Meta grid */
+    .meta-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .meta-item   { background: var(--navy); border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; font-size: 0.85rem; color: var(--text-dim); }
+    .meta-item strong { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-head); margin-bottom: 4px; }
+
+    /* Anomaly rows */
+    .anomalia-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text); line-height: 1.55; }
+    .anomalia-row:last-child { border-bottom: none; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; background: #e0a000; }
+    .dot.ok { background: var(--green-txt); }
+
+    .reporte-actions { display: flex; gap: 12px; margin-top: 4px; }
+    .btn-export { padding: 10px 22px; background: var(--navy-mid); color: var(--text-head); border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .btn-export:hover { background: var(--navy-lite); border-color: var(--accent); color: var(--accent); }
+
+    @media (max-width: 768px) {
+      header { padding: 0 16px; height: 52px; }
+      #user-info { display: none !important; }
+      .btn { padding: 7px 14px; font-size: 0.82rem; }
+      .creditos-badge { display: inline-flex !important; font-size: 0.72rem; padding: 3px 10px; }
+      .layout { display: block; }
+      .panel-form { border-right: none; border-bottom: 1px solid var(--border); padding: 18px 14px 22px; }
+      .panel-result { padding: 18px 14px; }
+      .panel-titulo { font-size: 0.65rem; margin-bottom: 18px; padding-bottom: 10px; }
+      .btn-submit { min-height: 52px; font-size: 1rem; }
+      .meta-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <img src="logoqahc.png?v=2" alt="AHC Intelligence" style="height:34px;object-fit:contain;display:block;" />
+    </div>
+    <div class="auth-bar">
+      <span id="user-info"></span>
+      <span id="creditos-badge" class="creditos-badge"></span>
+      <button id="btn-login" class="btn btn-primary" onclick="loginGoogle()">Iniciar sesión</button>
+      <button id="btn-logout" class="btn btn-secondary" style="display:none" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- PANEL IZQUIERDO: FORMULARIO -->
+    <aside class="panel-form">
+      <a class="back" href="compliance-hub.html">← Volver al módulo Compliance</a>
+      <div class="panel-titulo">Análisis Forense de Documentos</div>
+
+      <div class="capas-info">
+        <div class="capas-info-titulo">Metodología — 4 Capas</div>
+        <div class="capa-row"><span class="capa-num">C1</span> Metadatos locales: software creador, fechas, señales de edición</div>
+        <div class="capa-row"><span class="capa-num">C2</span> Tipografía y kerning: consistencia de fuentes en campos críticos</div>
+        <div class="capa-row"><span class="capa-num">C3</span> Artefactos visuales: ELA, halos de compresión, guillochés alterados</div>
+        <div class="capa-row"><span class="capa-num">C4</span> Detección IA: bordes difuminados, micro-textos, firmas generadas</div>
+      </div>
+
+      <form id="forensic-form" onsubmit="enviarAnalisisForensic(event)">
+
+        <div class="field">
+          <label>Documento a Analizar <span style="color:var(--red-txt)">*</span></label>
+          <div
+            id="drop-zone-forensic"
+            class="drop-zone"
+            onclick="document.getElementById('file-input-forensic').click()"
+            ondragover="event.preventDefault(); this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="event.preventDefault(); this.classList.remove('drag-over'); selectForensicDoc(event.dataTransfer.files[0])"
+          >
+            <div class="drop-zone-icon">🔬</div>
+            <div class="drop-zone-title">Arrastrá el documento aquí</div>
+            <div class="drop-zone-hint">o <span onclick="event.stopPropagation(); document.getElementById('file-input-forensic').click()">seleccioná un archivo</span><br>PDF · JPG · PNG · TIFF — máx. 10 MB</div>
+          </div>
+          <div id="file-preview-forensic" class="file-preview"></div>
+          <input type="file" id="file-input-forensic" accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif" style="display:none"
+            onchange="selectForensicDoc(this.files[0])" />
+        </div>
+
+        <button type="submit" class="btn-analizar">Analizar Documento</button>
+        <div class="costo-hint">Costo: <strong>25 créditos</strong></div>
+        <div id="estado-forensic" class="estado-msg"></div>
+
+      </form>
+    </aside>
+
+    <!-- PANEL DERECHO: RESULTADOS -->
+    <main class="panel-result">
+
+      <div id="placeholder-msg" class="placeholder-msg">
+        <div class="placeholder-icon">🔬</div>
+        <p>Adjuntá un documento para iniciar el análisis forense de autenticidad en 4 capas.</p>
+      </div>
+
+      <div id="reporte-container" class="reporte-container">
+
+        <div class="reporte-header">
+          <div class="reporte-label">Reporte Forense — AHC Intelligence</div>
+          <div id="r-archivo-nombre" class="reporte-nombre">—</div>
+          <div class="reporte-meta">Generado el <span id="r-fecha">—</span></div>
+        </div>
+
+        <!-- Veredicto y Score -->
+        <div class="seccion">
+          <div class="sec-titulo">Veredicto de Autenticidad</div>
+          <div id="r-forense-verdict"></div>
+          <div class="sec-titulo" style="margin-top:16px">Score de Confianza Antifraude</div>
+          <div class="score-wrap">
+            <div class="score-track">
+              <div id="r-score-fill" class="score-fill" style="width:0%"></div>
+            </div>
+            <div id="r-score-val" class="score-val">— / 100</div>
+          </div>
+        </div>
+
+        <!-- Metadatos -->
+        <div class="seccion">
+          <div class="sec-titulo">Capa 1 — Metadatos del Documento</div>
+          <div id="r-forense-meta" class="meta-grid"></div>
+        </div>
+
+        <!-- Anomalías -->
+        <div class="seccion">
+          <div class="sec-titulo">Capas 2–4 — Anomalías Detectadas</div>
+          <div id="r-forense-anomalias"></div>
+        </div>
+
+        <div class="reporte-actions">
+          <button class="btn-export" onclick="exportarPDFForensic()">Exportar PDF</button>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

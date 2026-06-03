@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compliance & Due Diligence — AHC Intelligence</title>
+  <link rel="icon" type="image/png" href="logoqahc.png" />
+  <style>
+    :root {
+      --navy:      #ffffff;
+      --navy-mid:  #f4f6f9;
+      --navy-lite: #e8ecf2;
+      --border:    #d0d8e4;
+      --accent:    #1a56a0;
+      --accent-h:  #1464bf;
+      --text:      #1a2535;
+      --text-dim:  #3a5068;
+      --text-head: #040d18;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--navy); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; line-height: 1.6; }
+
+    header {
+      background: var(--navy-mid); border-bottom: 2px solid var(--accent);
+      padding: 0 48px; height: 64px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .inner { max-width: 1280px; margin: 0 auto; width: 100%; }
+    .logo { display: flex; align-items: center; gap: 14px; }
+    .auth-bar { display: flex; align-items: center; gap: 14px; font-size: 0.95rem; color: var(--text-dim); }
+    .btn { padding: 9px 22px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .15s; }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-secondary:hover { color: var(--text-head); }
+    .creditos-badge { display: none; padding: 4px 12px; background: var(--navy-lite); border: 1px solid var(--border); border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+
+    .breadcrumb {
+      padding: 14px 48px;
+      background: var(--navy-mid);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.82rem; color: var(--text-dim);
+    }
+    .breadcrumb a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    .breadcrumb a:hover { color: var(--accent-h); }
+    .breadcrumb span { margin: 0 8px; }
+
+    .hero {
+      border-bottom: 1px solid var(--border);
+      padding: 44px 48px 36px;
+      background: linear-gradient(180deg, #eaf0f8 0%, var(--navy) 100%);
+    }
+    .hero-label { font-size: 0.78rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+    .hero-title { font-size: 2rem; font-weight: 700; color: var(--text-head); line-height: 1.2; }
+    .hero-title span { color: var(--accent); }
+    .hero-desc { font-size: 1rem; color: var(--text-dim); margin-top: 14px; max-width: 560px; line-height: 1.75; }
+
+    .modules-wrap { padding: 40px 48px; flex: 1; }
+    .modules-label { font-size: 0.78rem; font-weight: 700; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 28px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+
+    .modules { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+
+    .module-card {
+      background: var(--navy-mid); border: 1px solid var(--border);
+      border-top: 3px solid var(--accent);
+      padding: 32px 30px; display: flex; flex-direction: column; gap: 0;
+      transition: border-color .2s, background .2s;
+      text-decoration: none; position: relative; overflow: hidden;
+    }
+    .module-card:hover { background: var(--navy-lite); border-color: var(--accent-h); }
+    .module-card:hover .card-link::after { transform: translateX(4px); }
+
+    .card-num   { font-size: 0.72rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; }
+    .card-title { font-size: 1.2rem; font-weight: 700; color: var(--text-head); margin-bottom: 12px; }
+    .card-desc  { font-size: 0.93rem; color: var(--text-dim); line-height: 1.75; margin-bottom: 22px; flex: 1; }
+    .card-tags  { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+    .tag        { font-size: 0.78rem; font-weight: 500; color: var(--text-dim); background: var(--navy-lite); border: 1px solid var(--border); padding: 4px 12px; border-radius: 3px; }
+    .card-link  {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.76rem; font-weight: 700; color: var(--accent);
+      letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    .card-link::after { content: '→'; transition: transform .15s; }
+    .card-icon  { position: absolute; right: 26px; top: 26px; font-size: 2.2rem; opacity: .22; }
+
+    .status-bar {
+      padding: 14px 48px; background: var(--navy-mid);
+      border-top: 1px solid var(--border);
+      display: flex; gap: 32px; align-items: center;
+      font-size: 0.72rem; color: var(--text-dim);
+    }
+    .status-item { display: flex; align-items: center; gap: 8px; }
+    .status-dot  { width: 6px; height: 6px; border-radius: 50%; background: #5ddb8a; }
+
+    @media (max-width: 768px) {
+      header { padding: 0 16px; height: 52px; }
+      #user-info { display: none !important; }
+      .btn { padding: 7px 14px; font-size: 0.82rem; }
+      .creditos-badge { display: inline-flex !important; font-size: 0.72rem; padding: 3px 10px; }
+
+      .breadcrumb { padding: 10px 16px; font-size: 0.76rem; }
+
+      .hero { padding: 16px 16px 14px; background: linear-gradient(160deg, #eaf0f8 0%, #f8fafd 100%); }
+      .hero-label { font-size: 0.58rem; margin-bottom: 8px; }
+      .hero-title { font-size: 1.2rem; line-height: 1.3; }
+      .hero-title br { display: none; }
+      .hero-desc  { display: none; }
+
+      .modules-wrap  { padding: 16px 12px 24px; }
+      .modules-label { font-size: 0.6rem; letter-spacing: 2px; margin-bottom: 14px; padding-bottom: 10px; }
+      .modules       { grid-template-columns: 1fr; gap: 8px; }
+
+      .module-card {
+        padding: 16px 48px 16px 20px;
+        border-top: none;
+        border-left: 3px solid var(--accent);
+        border-radius: 0;
+        flex-direction: column;
+        gap: 0;
+        box-shadow: 0 1px 4px rgba(0,0,0,.04);
+        position: relative;
+      }
+      .module-card::after {
+        content: '›';
+        position: absolute;
+        right: 16px; top: 50%;
+        transform: translateY(-50%);
+        font-size: 1.6rem; font-weight: 300;
+        color: var(--accent); opacity: .45;
+      }
+      .card-icon  { display: none; }
+      .card-num   { font-size: 0.58rem; margin-bottom: 4px; letter-spacing: 2px; }
+      .card-title { font-size: 1rem; font-weight: 700; margin-bottom: 0; }
+      .card-desc  { display: none; }
+      .card-tags  { display: none; }
+      .card-link  { display: none; }
+
+      .status-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <img src="logoqahc.png?v=2" alt="AHC Intelligence" style="height:34px;object-fit:contain;display:block;" />
+    </div>
+    <div class="auth-bar">
+      <span id="user-info"></span>
+      <span id="creditos-badge" class="creditos-badge"></span>
+      <button id="btn-login" class="btn btn-primary" onclick="loginGoogle()">Iniciar sesión</button>
+      <button id="btn-logout" class="btn btn-secondary" style="display:none" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <div class="breadcrumb">
+    <div class="inner">
+      <a href="index.html">Panel Principal</a>
+      <span>›</span>
+      <strong style="color:var(--text)">Compliance &amp; Due Diligence</strong>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="inner">
+      <div class="hero-label">Módulo 01 — Compliance &amp; Due Diligence</div>
+      <div class="hero-title">Cuatro herramientas especializadas<br><span>para blindar cada operación</span></div>
+      <div class="hero-desc">Investigación KYC transfronteriza, análisis forense de documentos, auditoría de contratos y guía regulatoria conversacional. Cuatro herramientas independientes, un solo módulo.</div>
+    </div>
+  </div>
+
+  <div class="modules-wrap">
+    <div class="inner">
+      <div class="modules-label">Herramientas Disponibles</div>
+      <div class="modules">
+
+        <a class="module-card" href="compliance.html">
+          <div class="card-icon">🔍</div>
+          <div class="card-num">01 — A</div>
+          <div class="card-title">Due Diligence KYC / AML</div>
+          <div class="card-desc">Rastreo transfronterizo de personas físicas y jurídicas: redes corporativas, sanciones OFAC/ONU, PEPs y antecedentes de lavado de activos con búsqueda en tiempo real.</div>
+          <div class="card-tags">
+            <span class="tag">KYC / AML</span>
+            <span class="tag">OFAC</span>
+            <span class="tag">PEPs</span>
+            <span class="tag">Red Corporativa</span>
+            <span class="tag">Sanciones ONU</span>
+          </div>
+          <div class="card-link">Iniciar Due Diligence</div>
+        </a>
+
+        <a class="module-card" href="forensic.html">
+          <div class="card-icon">🔬</div>
+          <div class="card-num">01 — B</div>
+          <div class="card-title">Análisis Forense de Documentos</div>
+          <div class="card-desc">Autenticación multimodal en 4 capas: metadatos locales, tipografía y kerning, artefactos de compresión ELA y detección de alteración por IA generativa.</div>
+          <div class="card-tags">
+            <span class="tag">Antifraude</span>
+            <span class="tag">ELA</span>
+            <span class="tag">Metadatos</span>
+            <span class="tag">Detección IA</span>
+            <span class="tag">PDF / Imagen</span>
+          </div>
+          <div class="card-link">Analizar Documento</div>
+        </a>
+
+        <a class="module-card" href="contracts.html">
+          <div class="card-icon">§</div>
+          <div class="card-num">01 — C</div>
+          <div class="card-title">Auditoría de Contratos</div>
+          <div class="card-desc">Análisis legal de contratos, memorandos y acuerdos. Detecta cláusulas leoninas, vacíos legales y riesgos comerciales con recomendación de firma estructurada.</div>
+          <div class="card-tags">
+            <span class="tag">Contratos</span>
+            <span class="tag">Cláusulas Leoninas</span>
+            <span class="tag">Vacíos Legales</span>
+            <span class="tag">MOU / NDA</span>
+            <span class="tag">PDF</span>
+          </div>
+          <div class="card-link">Auditar Contrato</div>
+        </a>
+
+        <a class="module-card" href="legal-chat.html">
+          <div class="card-icon">⚖</div>
+          <div class="card-num">01 — D</div>
+          <div class="card-title">Guía Regulatoria</div>
+          <div class="card-desc">Referencia normativa conversacional. Sube un documento, regulación o marco legal y consultá sobre su contenido en lenguaje natural. Orientación informativa para apoyar el trabajo del asesor humano.</div>
+          <div class="card-tags">
+            <span class="tag">Normativa</span>
+            <span class="tag">Regulaciones</span>
+            <span class="tag">Marco Legal</span>
+            <span class="tag">Consulta Libre</span>
+            <span class="tag">Referencia</span>
+          </div>
+          <div class="card-link">Consultar Guía</div>
+        </a>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="inner" style="display:flex;gap:32px;align-items:center">
+      <div class="status-item"><div class="status-dot"></div> Procesador local conectado</div>
+      <div class="status-item"><div class="status-dot"></div> Firestore activo</div>
+      <div style="margin-left:auto; color:#3a5060; font-size:0.68rem; letter-spacing:1px;">AHC Intelligence v1.0</div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

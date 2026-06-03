@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Tareas pendientes — usuario autenticado puede crear y leer las suyas
+    match /tareas_pendientes/{tareaId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Resultados — solo lectura del propietario
+    match /resultados/{resultadoId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.uid;
+      allow write: if false;
+    }
+
+    // Datos de usuario (créditos, plan)
+    match /usuarios/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Suscripciones pendientes — el usuario escribe la suya
+    match /suscripciones_pendientes/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Historial de suscripciones — solo lectura del propietario
+    match /suscripciones/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Leads institucionales — cualquier usuario autenticado puede crear (no leer)
+    match /leads_institucionales/{leadId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
+    }
+  }
+}

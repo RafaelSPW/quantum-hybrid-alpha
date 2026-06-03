@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análisis de Contratos — AHC Intelligence</title>
+  <link rel="icon" type="image/png" href="logoqahc.png" />
+  <meta property="og:title" content="AHC Intelligence — Análisis de Contratos" />
+  <meta property="og:description" content="Auditoría legal inteligente de contratos: cláusulas leoninas, vacíos legales y riesgos comerciales." />
+  <meta property="og:image" content="https://agenteahc.web.app/logoqahc.png" />
+  <meta property="og:url" content="https://agenteahc.web.app/contracts.html" />
+  <meta property="og:type" content="website" />
+  <style>
+    :root {
+      --navy:      #ffffff;
+      --navy-mid:  #f4f6f9;
+      --navy-lite: #e8ecf2;
+      --border:    #c8d4e0;
+      --accent:    #1a56a0;
+      --accent-h:  #1464bf;
+      --text:      #1a2535;
+      --text-dim:  #3a5068;
+      --text-head: #040d18;
+      --green:     #d4f0e0;
+      --green-txt: #1a6e3a;
+      --amber:     #fff3cc;
+      --amber-txt: #8a6000;
+      --red:       #fde8e8;
+      --red-txt:   #b02020;
+      --red-hi:    #c02828;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--navy); color: var(--text); min-height: 100vh; line-height: 1.6; }
+
+    header {
+      background: var(--navy-mid); padding: 0 40px; height: 62px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid var(--accent);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 14px; }
+    .auth-bar { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: var(--text-dim); }
+    .btn { padding: 8px 20px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .15s; }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-secondary:hover { color: var(--text-head); }
+    .creditos-badge {
+      display: none; padding: 4px 12px; background: var(--navy-lite);
+      border: 1px solid var(--border); border-radius: 20px;
+      font-size: 0.8rem; font-weight: 700; color: var(--green-txt);
+    }
+
+    .layout { display: grid; grid-template-columns: 380px 1fr; min-height: calc(100vh - 62px); }
+
+    .panel-form {
+      background: var(--navy-mid); border-right: 1px solid var(--border);
+      padding: 32px 28px; overflow-y: auto;
+    }
+    .panel-form .back { color: var(--accent); text-decoration: none; font-size: 0.9rem; margin-bottom: 24px; display: block; font-weight: 500; }
+    .panel-form .back:hover { color: var(--accent-h); }
+    .panel-titulo { font-size: 0.75rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border); }
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 7px; }
+    .field select, .field textarea {
+      width: 100%; padding: 11px 14px;
+      background: var(--navy); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text-head); font-size: 0.95rem;
+      font-family: inherit; transition: border-color .15s;
+    }
+    .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,86,160,.1); }
+    .field textarea { resize: vertical; min-height: 80px; }
+
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: 6px;
+      padding: 24px 16px; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s; background: var(--navy);
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: #edf3fb; }
+    .drop-zone-icon  { font-size: 2rem; color: var(--border); margin-bottom: 8px; }
+    .drop-zone-label { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
+    .drop-zone-label strong { color: var(--accent); }
+    .drop-zone-hint  { font-size: 0.75rem; color: #a0b4c8; margin-top: 4px; }
+    .file-preview {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 10px; padding: 10px 12px;
+      background: var(--navy-mid); border: 1px solid var(--border);
+      border-radius: 4px; font-size: 0.85rem; color: var(--text);
+    }
+    .file-preview-icon { font-size: 1.2rem; }
+    .file-preview-name { flex: 1; font-weight: 600; color: var(--text-head); word-break: break-all; }
+    .file-preview-size { font-size: 0.78rem; color: var(--text-dim); white-space: nowrap; }
+    .file-remove { cursor: pointer; color: var(--red-txt); font-size: 1rem; font-weight: 700; padding: 0 4px; }
+    #file-input-contrato { display: none; }
+
+    .btn-submit {
+      margin-top: 12px; width: 100%; padding: 13px;
+      background: var(--accent); color: #fff; border: none; border-radius: 4px;
+      font-size: 0.95rem; font-weight: 700; cursor: pointer; letter-spacing: 0.5px; transition: background .15s;
+    }
+    .btn-submit:hover { background: var(--accent-h); }
+    .estado-msg { margin-top: 14px; font-size: 0.9rem; color: var(--text-dim); min-height: 20px; line-height: 1.5; }
+    .estado-msg.activo { color: var(--amber-txt); font-weight: 500; }
+
+    .panel-reporte { padding: 40px 48px; overflow-y: auto; background: var(--navy); }
+    .placeholder { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; color: var(--border); }
+    .placeholder p { font-size: 1rem; color: var(--text-dim); }
+
+    #reporte-container { display: none; }
+
+    .reporte-top {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding-bottom: 28px; margin-bottom: 32px;
+      border-bottom: 2px solid var(--border); flex-wrap: wrap; gap: 16px;
+    }
+    .reporte-subtitulo { font-size: 0.75rem; font-weight: 600; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+    .reporte-tipo   { font-size: 1.8rem; font-weight: 700; color: var(--text-head); line-height: 1.2; max-width: 500px; }
+    .reporte-meta   { font-size: 0.9rem; color: var(--text-dim); margin-top: 10px; line-height: 2; }
+    .reporte-meta strong { color: var(--text); font-weight: 600; }
+
+    .badge-rec { display: inline-block; padding: 9px 20px; border-radius: 4px; font-size: 0.82rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+    .badge-firmar   { background: var(--green); color: var(--green-txt); border-left: 4px solid var(--green-txt); }
+    .badge-revisar  { background: var(--amber);  color: var(--amber-txt); border-left: 4px solid var(--amber-txt); }
+    .badge-no-firmar{ background: var(--red);    color: var(--red-txt);   border-left: 4px solid var(--red-txt); }
+
+    .reporte-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .reporte-grid.full { grid-template-columns: 1fr; }
+    .seccion { background: var(--navy-mid); border: 1px solid var(--border); border-radius: 6px; padding: 24px 26px; }
+    .seccion-titulo {
+      font-size: 0.75rem; font-weight: 700; color: var(--accent); text-transform: uppercase;
+      letter-spacing: 2px; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .seccion-titulo::after { content:''; flex: 1; height: 1px; background: var(--border); }
+    .seccion p { font-size: 0.95rem; color: var(--text); line-height: 1.8; }
+
+    /* Cláusulas problemáticas */
+    .clausula-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 4px;
+      padding: 14px 16px; margin-bottom: 12px;
+    }
+    .clausula-card:last-child { margin-bottom: 0; }
+    .clausula-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .clausula-nombre { font-weight: 700; color: var(--text-head); font-size: 0.95rem; line-height: 1.3; }
+    .sev-badge { display: inline-block; padding: 3px 9px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; white-space: nowrap; flex-shrink: 0; }
+    .sev-alta  { background: var(--red);   color: var(--red-txt); }
+    .sev-media { background: var(--amber); color: var(--amber-txt); }
+    .sev-baja  { background: var(--green); color: var(--green-txt); }
+    .clausula-texto {
+      font-size: 0.82rem; color: var(--text-dim); font-style: italic;
+      border-left: 3px solid var(--border); padding-left: 10px;
+      margin-bottom: 8px; line-height: 1.6;
+    }
+    .clausula-riesgo { font-size: 0.88rem; color: var(--text); line-height: 1.6; }
+
+    /* Listas simples */
+    .item-row {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 9px 0; border-bottom: 1px solid var(--border);
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .dot-red    { background: var(--red-txt); }
+    .dot-amber  { background: var(--amber-txt); }
+    .dot-green  { background: var(--green-txt); }
+    .dot-accent { background: var(--accent); }
+    .item-row span { font-size: 0.92rem; color: var(--text); line-height: 1.6; }
+
+    /* Partes */
+    .parte-row { display: flex; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--border); align-items: center; }
+    .parte-row:last-child { border-bottom: none; }
+    .parte-nombre { font-weight: 600; color: var(--text-head); font-size: 0.95rem; flex: 1; }
+    .parte-rol { font-size: 0.8rem; color: var(--text-dim); background: var(--navy-lite); border: 1px solid var(--border); padding: 3px 10px; border-radius: 3px; white-space: nowrap; }
+
+    /* Conclusión */
+    .conclusion-wrap textarea {
+      width: 100%; padding: 13px 15px; background: #fff; border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text-head); font-size: 0.95rem;
+      font-family: inherit; resize: vertical; min-height: 110px; transition: border-color .15s;
+    }
+    .conclusion-wrap textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,86,160,.1); }
+    .conclusion-acciones { display: flex; gap: 12px; margin-top: 14px; }
+    .btn-guardar {
+      padding: 11px 24px; background: var(--accent); color: #fff;
+      border: none; border-radius: 4px; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: background .15s;
+    }
+    .btn-guardar:hover { background: var(--accent-h); }
+    .btn-guardar:disabled { opacity: .6; cursor: default; }
+    .btn-pdf {
+      padding: 11px 24px; background: transparent; color: var(--text-dim);
+      border: 1px solid var(--border); border-radius: 4px;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all .15s;
+    }
+    .btn-pdf:hover { border-color: var(--accent); color: var(--accent); }
+    .mock-badge { display: inline-block; background: var(--amber); color: var(--amber-txt); border: 1px solid var(--amber-txt); font-size: 0.72rem; padding: 2px 8px; margin-left: 8px; vertical-align: middle; font-weight: 700; border-radius: 3px; }
+
+    @media (max-width: 768px) {
+      header { padding: 0 16px; height: 52px; }
+      #user-info { display: none !important; }
+      .btn { padding: 7px 14px; font-size: 0.82rem; }
+      .creditos-badge { display: inline-flex !important; font-size: 0.72rem; padding: 3px 10px; }
+      .layout { display: block; }
+      .panel-form { border-right: none; border-bottom: 1px solid var(--border); padding: 18px 14px 22px; }
+      .panel-reporte { padding: 18px 14px; }
+      .field input, .field textarea, .field select { min-height: 48px; font-size: 1rem; }
+      .btn-submit { min-height: 52px; font-size: 1rem; letter-spacing: 0; }
+      .panel-titulo { font-size: 0.65rem; margin-bottom: 18px; padding-bottom: 10px; }
+      .reporte-grid { grid-template-columns: 1fr; }
+      .reporte-top { flex-direction: column; }
+      .conclusion-acciones { flex-direction: column; }
+      .btn-guardar, .btn-pdf { width: 100%; min-height: 48px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <img src="logoqahc.png?v=2" alt="AHC Intelligence" style="height:34px;object-fit:contain;display:block;" />
+    </div>
+    <div class="auth-bar">
+      <span id="user-info"></span>
+      <span id="creditos-badge" class="creditos-badge"></span>
+      <button id="btn-login" class="btn btn-primary" onclick="loginGoogle()">Iniciar sesión</button>
+      <button id="btn-logout" class="btn btn-secondary" style="display:none" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- PANEL FORMULARIO -->
+    <div class="panel-form">
+      <a href="index.html" class="back">← Panel principal</a>
+      <div class="panel-titulo">Análisis de Contratos</div>
+
+      <form onsubmit="enviarAnalisisContrato(event)">
+
+        <div class="field">
+          <label>Contrato a Analizar <span style="font-weight:400;color:var(--red-txt)">*</span></label>
+          <input type="file" id="file-input-contrato" accept=".pdf,.jpg,.jpeg,.png"
+                 onchange="selectContratoFile(this.files[0])" />
+          <div class="drop-zone" id="drop-zone-contrato"
+               onclick="document.getElementById('file-input-contrato').click()"
+               ondragover="event.preventDefault(); this.classList.add('dragover')"
+               ondragleave="this.classList.remove('dragover')"
+               ondrop="event.preventDefault(); this.classList.remove('dragover'); selectContratoFile(event.dataTransfer.files[0])">
+            <div class="drop-zone-icon">📑</div>
+            <div class="drop-zone-label"><strong>Arrastra el contrato aquí</strong> o haz clic</div>
+            <div class="drop-zone-hint">PDF · JPG · PNG — máx. 25 MB</div>
+          </div>
+          <div id="file-preview-contrato" style="display:none"></div>
+        </div>
+
+        <div class="field">
+          <label>Rol del cliente en el contrato</label>
+          <select id="rol_cliente">
+            <option value="Parte que recibe el contrato (revisar en su favor)">Recibe el contrato (revisar en su favor)</option>
+            <option value="Prestador de Servicios">Prestador de Servicios</option>
+            <option value="Contratante / Cliente">Contratante / Cliente</option>
+            <option value="Vendedor">Vendedor</option>
+            <option value="Comprador">Comprador</option>
+            <option value="Arrendador">Arrendador</option>
+            <option value="Arrendatario">Arrendatario</option>
+            <option value="Socio / Inversor">Socio / Inversor</option>
+            <option value="Garante / Fiador">Garante / Fiador</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Contexto adicional <span style="font-weight:400;color:#a0b4c8">(opcional)</span></label>
+          <textarea id="notas_adicionales" placeholder="Ej: Contrato de alquiler de oficinas. Revisar penalidades por rescisión anticipada y cláusulas de reajuste automático de alquiler."></textarea>
+        </div>
+
+        <button type="submit" class="btn-submit">Analizar Contrato con IA</button>
+      </form>
+
+      <p id="estado-contratos" class="estado-msg"></p>
+    </div>
+
+    <!-- PANEL REPORTE -->
+    <div class="panel-reporte">
+
+      <div class="placeholder" id="placeholder-msg">
+        <svg width="64" height="64" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+        </svg>
+        <p>Suba el contrato para iniciar el análisis legal</p>
+      </div>
+
+      <!-- REPORTE FORMAL -->
+      <div id="reporte-container">
+
+        <div class="reporte-top">
+          <div>
+            <div class="reporte-subtitulo">Auditoría Legal Inteligente — Análisis de Contratos</div>
+            <div class="reporte-tipo" id="r-tipo-contrato">—</div>
+            <div class="reporte-meta">
+              Partes: <strong id="r-partes-count">—</strong><br>
+              Generado: <strong id="r-fecha">—</strong>
+            </div>
+          </div>
+          <div id="r-rec-badge"></div>
+        </div>
+
+        <!-- Resumen + Partes -->
+        <div class="reporte-grid full" style="margin-bottom:20px">
+          <div class="seccion">
+            <div class="seccion-titulo">Resumen Ejecutivo</div>
+            <p id="r-resumen">—</p>
+          </div>
+        </div>
+
+        <div class="reporte-grid" style="margin-bottom:20px">
+          <div class="seccion">
+            <div class="seccion-titulo">Partes del Contrato</div>
+            <div id="r-partes"></div>
+          </div>
+          <div class="seccion">
+            <div class="seccion-titulo">Vacíos Legales</div>
+            <div id="r-vacios"></div>
+          </div>
+        </div>
+
+        <!-- Cláusulas problemáticas -->
+        <div class="reporte-grid full" style="margin-bottom:20px">
+          <div class="seccion">
+            <div class="seccion-titulo">Cláusulas Problemáticas</div>
+            <div id="r-clausulas"></div>
+          </div>
+        </div>
+
+        <!-- Riesgos + Favorables -->
+        <div class="reporte-grid" style="margin-bottom:20px">
+          <div class="seccion">
+            <div class="seccion-titulo">Riesgos Comerciales</div>
+            <div id="r-riesgos"></div>
+          </div>
+          <div class="seccion">
+            <div class="seccion-titulo">Cláusulas Favorables</div>
+            <div id="r-favorables"></div>
+          </div>
+        </div>
+
+        <!-- Notas del asesor -->
+        <div class="seccion" style="margin-top:4px">
+          <div class="seccion-titulo">Notas del Asesor Responsable</div>
+          <div class="conclusion-wrap">
+            <textarea id="r-notas-asesor" placeholder="Ingrese observaciones, postura de negociación recomendada y conclusión final del asesor..."></textarea>
+            <div class="conclusion-acciones">
+              <button class="btn-guardar" onclick="guardarNotasContrato()">Guardar Notas</button>
+              <button class="btn-pdf" onclick="exportarPDFContrato()">Exportar PDF / Imprimir</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /reporte-container -->
+    </div><!-- /panel-reporte -->
+  </div><!-- /layout -->
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

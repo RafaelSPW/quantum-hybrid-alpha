@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analizador Clínico de Activos — AHC Intelligence</title>
+  <link rel="icon" type="image/png" href="logoqahc.png" />
+  <style>
+    :root {
+      --navy:      #ffffff;
+      --navy-mid:  #f4f6f9;
+      --navy-lite: #e8ecf2;
+      --border:    #c8d4e0;
+      --accent:    #1a56a0;
+      --gold:      #8a6000;
+      --gold-bg:   #fffbf0;
+      --gold-bord: #e8d080;
+      --green:     #d4f0e0;
+      --green-txt: #1a6e3a;
+      --amber:     #fff3cc;
+      --amber-txt: #8a6000;
+      --red:       #fde8e8;
+      --red-txt:   #b02020;
+      --text:      #1a2535;
+      --text-dim:  #3a5068;
+      --text-head: #040d18;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--navy); color: var(--text); min-height: 100vh; line-height: 1.6; }
+
+    header {
+      background: var(--navy-mid); padding: 0 40px; height: 62px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 14px; }
+    .auth-bar { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: var(--text-dim); }
+    .btn { padding: 8px 20px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all .15s; }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #1464bf; }
+    .btn-secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .creditos-badge { display: none; padding: 4px 12px; background: var(--navy-lite); border: 1px solid var(--border); border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+
+    .layout { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 62px); }
+
+    .panel-form {
+      background: var(--navy-mid); border-right: 1px solid var(--border);
+      padding: 32px 28px; overflow-y: auto;
+    }
+    .panel-form .back { color: var(--accent); text-decoration: none; font-size: 0.9rem; margin-bottom: 24px; display: block; font-weight: 500; }
+    .panel-titulo { font-size: 0.75rem; font-weight: 700; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid var(--gold-bord); }
+
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 7px; }
+    .field textarea {
+      width: 100%; padding: 12px 14px; background: var(--navy);
+      border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-head); font-size: 0.95rem; font-family: inherit;
+      resize: vertical; min-height: 120px; transition: border-color .15s;
+    }
+    .field textarea:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(138,96,0,.1); }
+
+    .ejemplos { background: var(--gold-bg); border: 1px solid var(--gold-bord); border-radius: 6px; padding: 14px 16px; margin-bottom: 20px; }
+    .ejemplos-titulo { font-size: 0.72rem; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+    .ejemplo { font-size: 0.82rem; color: var(--text-dim); padding: 6px 10px; cursor: pointer; border-radius: 3px; transition: background .15s; margin-bottom: 4px; }
+    .ejemplo:last-child { margin-bottom: 0; }
+    .ejemplo:hover { background: #f0e8c0; color: var(--gold); }
+    .ejemplo::before { content: '"'; color: var(--gold); }
+    .ejemplo::after  { content: '"'; color: var(--gold); }
+
+    .btn-analizar {
+      width: 100%; padding: 13px; background: var(--gold); color: #fff;
+      border: none; border-radius: 4px; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; transition: background .15s; margin-top: 4px;
+    }
+    .btn-analizar:hover { background: #7a5400; }
+    .costo-hint { font-size: 0.78rem; color: var(--text-dim); text-align: center; margin-top: 8px; }
+    .costo-hint strong { color: var(--gold); }
+    .estado-msg { font-size: 0.85rem; color: var(--text-dim); margin-top: 12px; min-height: 20px; }
+    .estado-msg.activo { color: var(--gold); }
+
+    /* PANEL DERECHO */
+    .panel-result { padding: 32px 36px; overflow-y: auto; background: var(--navy); }
+    .placeholder-msg { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px; text-align: center; color: var(--text-dim); min-height: 400px; }
+    .placeholder-icon { font-size: 3rem; opacity: .12; }
+    .placeholder-msg p { font-size: 0.95rem; max-width: 340px; line-height: 1.7; }
+
+    .reporte-container { display: none; }
+    .reporte-header { margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+    .reporte-meta-left .reporte-label { font-size: 0.72rem; font-weight: 700; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+    .reporte-nombre { font-size: 1.5rem; font-weight: 700; color: var(--text-head); }
+    .reporte-fecha  { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; }
+    .precio-ref     { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; }
+    .mock-badge     { display: inline-block; background: var(--amber); color: var(--amber-txt); font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 3px; margin-left: 8px; vertical-align: middle; }
+
+    .veredicto-badge { display: inline-flex; align-items: center; padding: 10px 20px; border-radius: 4px; font-size: 1rem; font-weight: 800; letter-spacing: 1px; }
+    .verd-comprar { background: var(--green); color: var(--green-txt); border-left: 3px solid var(--green-txt); }
+    .verd-esperar { background: var(--amber); color: var(--amber-txt); border-left: 3px solid var(--amber-txt); }
+    .verd-vender  { background: var(--red);   color: var(--red-txt);   border-left: 3px solid var(--red-txt); }
+    .verd-neutral { background: var(--navy-lite); color: var(--text-dim); border-left: 3px solid var(--border); }
+
+    .seccion { background: var(--navy-mid); border: 1px solid var(--border); border-radius: 6px; padding: 22px 24px; margin-bottom: 16px; }
+    .sec-titulo { font-size: 0.72rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+    .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .data-item { background: var(--navy); border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px; }
+    .data-item strong { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); margin-bottom: 4px; }
+    .data-item span { font-size: 0.9rem; color: var(--text-head); font-weight: 500; }
+    .analisis-p { font-size: 0.9rem; color: var(--text-dim); line-height: 1.7; }
+
+    .evento-row { font-size: 0.88rem; color: var(--text-dim); padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .evento-row:last-child { border-bottom: none; }
+
+    .escenarios { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .esc-card { border-radius: 4px; padding: 12px 14px; font-size: 0.85rem; line-height: 1.55; }
+    .esc-base    { background: var(--navy-lite); border: 1px solid var(--border); }
+    .esc-alcista { background: var(--green); border: 1px solid #a8dcc0; }
+    .esc-bajista { background: var(--red);   border: 1px solid #f0b0b0; }
+    .esc-label   { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .esc-base .esc-label    { color: var(--text-dim); }
+    .esc-alcista .esc-label { color: var(--green-txt); }
+    .esc-bajista .esc-label { color: var(--red-txt); }
+    .ratio-row  { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); font-size: 0.9rem; }
+    .ratio-row strong { color: var(--text-head); }
+    .ratio-val  { font-size: 1rem; font-weight: 800; color: var(--gold); }
+
+    .adv-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; color: var(--text-dim); line-height: 1.5; }
+    .adv-row:last-child { border-bottom: none; }
+    .adv-dot { color: var(--amber-txt); flex-shrink: 0; }
+
+    .reporte-actions { display: flex; gap: 12px; margin-top: 4px; }
+    .btn-export { padding: 10px 22px; background: var(--navy-mid); color: var(--text-head); border: 1px solid var(--border); border-radius: 4px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .btn-export:hover { background: var(--gold-bg); border-color: var(--gold); color: var(--gold); }
+
+    @media (max-width: 768px) {
+      header { padding: 0 16px; height: 52px; }
+      #user-info { display: none !important; }
+      .btn { padding: 7px 14px; font-size: 0.82rem; }
+      .creditos-badge { display: inline-flex !important; font-size: 0.72rem; padding: 3px 10px; }
+      .layout { display: block; }
+      .panel-form { border-right: none; border-bottom: 1px solid var(--border); padding: 18px 14px 22px; }
+      .panel-result { padding: 18px 14px; }
+      .panel-titulo { font-size: 0.65rem; margin-bottom: 18px; padding-bottom: 10px; }
+      .field input, .field textarea { min-height: 48px; font-size: 1rem; }
+      .btn-submit { min-height: 52px; font-size: 1rem; }
+      .reporte-header { flex-direction: column; gap: 12px; }
+      .data-grid { grid-template-columns: 1fr; }
+      .escenarios { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <img src="logoqahc.png?v=2" alt="AHC Intelligence" style="height:34px;object-fit:contain;display:block;" />
+    </div>
+    <div class="auth-bar">
+      <span id="user-info"></span>
+      <span id="creditos-badge" class="creditos-badge"></span>
+      <button id="btn-login" class="btn btn-primary" onclick="loginGoogle()">Iniciar sesión</button>
+      <button id="btn-logout" class="btn btn-secondary" style="display:none" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <aside class="panel-form">
+      <a class="back" href="markets.html">← Volver a Consultor de Mercados</a>
+      <div class="panel-titulo">Analizador Clínico de Activos</div>
+
+      <div class="ejemplos">
+        <div class="ejemplos-titulo">Ejemplos de consulta</div>
+        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[""]/g,'')">Analiza el panorama actual del EURUSD para los próximos 15 días</div>
+        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[""]/g,'')">¿Conviene entrar en Oro esta semana ante los datos de inflación USA?</div>
+        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[""]/g,'')">¿Qué opinas de Bonos del Tesoro a 2 años en el contexto macro actual?</div>
+      </div>
+
+      <form id="activo-form" onsubmit="enviarAnalisisActivo(event)">
+        <div class="field">
+          <label>Consulta libre <span style="color:#b02020">*</span></label>
+          <textarea
+            id="consulta-activo"
+            placeholder="Escribí el activo, par de divisas, bono o hipótesis de inversión que querés analizar..."
+            rows="5"
+          ></textarea>
+        </div>
+
+        <button type="submit" class="btn-analizar">Analizar Ahora</button>
+        <div class="costo-hint">Costo: <strong>30 créditos</strong></div>
+        <div id="estado-activo" class="estado-msg"></div>
+      </form>
+    </aside>
+
+    <main class="panel-result">
+
+      <div id="placeholder-msg" class="placeholder-msg">
+        <div class="placeholder-icon">📈</div>
+        <p>Ingresá un activo, par de divisas o hipótesis de inversión para obtener el análisis clínico.</p>
+      </div>
+
+      <div id="reporte-container" class="reporte-container">
+
+        <div class="reporte-header">
+          <div class="reporte-meta-left">
+            <div class="reporte-label">Análisis Clínico — AHC Intelligence</div>
+            <div id="r-activo-nombre" class="reporte-nombre">—</div>
+            <div id="r-precio-ref" class="precio-ref">—</div>
+            <div id="r-fecha" class="reporte-fecha">—</div>
+          </div>
+          <div id="r-veredicto-badge"></div>
+        </div>
+
+        <!-- TÉCNICO -->
+        <div class="seccion">
+          <div class="sec-titulo">Contexto Técnico</div>
+          <div class="data-grid">
+            <div class="data-item"><strong>Tendencia</strong><span id="r-tec-tendencia">—</span></div>
+            <div class="data-item"><strong>Soporte Clave</strong><span id="r-tec-soporte">—</span></div>
+            <div class="data-item"><strong>Resistencia Clave</strong><span id="r-tec-resistencia">—</span></div>
+            <div class="data-item"><strong>Volatilidad</strong><span id="r-tec-volatilidad">—</span></div>
+          </div>
+          <p id="r-tec-analisis" class="analisis-p">—</p>
+        </div>
+
+        <!-- FUNDAMENTAL -->
+        <div class="seccion">
+          <div class="sec-titulo">Contexto Fundamental</div>
+          <div class="data-grid" style="margin-bottom:12px">
+            <div class="data-item" style="grid-column:span 2"><strong>Tasas de Interés</strong><span id="r-fund-tasas">—</span></div>
+          </div>
+          <div id="r-fund-eventos" style="margin-bottom:12px"></div>
+          <p id="r-fund-analisis" class="analisis-p">—</p>
+        </div>
+
+        <!-- MATRIZ RIESGO/RETORNO -->
+        <div class="seccion">
+          <div class="sec-titulo">Matriz Riesgo / Retorno</div>
+          <div class="escenarios">
+            <div class="esc-card esc-base">    <div class="esc-label">Escenario Base</div>    <div id="r-esc-base">—</div></div>
+            <div class="esc-card esc-alcista"> <div class="esc-label">Escenario Alcista</div> <div id="r-esc-alcista">—</div></div>
+            <div class="esc-card esc-bajista"> <div class="esc-label">Escenario Bajista</div> <div id="r-esc-bajista">—</div></div>
+          </div>
+          <div class="ratio-row"><strong>Ratio Riesgo / Retorno</strong><span id="r-ratio-rr" class="ratio-val">—</span></div>
+        </div>
+
+        <!-- CONCLUSIÓN -->
+        <div class="seccion">
+          <div class="sec-titulo">Conclusión Ejecutiva</div>
+          <p id="r-conclusion" class="analisis-p">—</p>
+        </div>
+
+        <!-- ADVERTENCIAS -->
+        <div class="seccion">
+          <div class="sec-titulo">Advertencias y Riesgos</div>
+          <div id="r-advertencias"></div>
+        </div>
+
+        <div class="reporte-actions">
+          <button class="btn-export" onclick="exportarPDFActivo()">Exportar PDF</button>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="app.js"></script>
+  <script>
+    function exportarPDFActivo() {
+      var activo   = document.getElementById("r-activo-nombre").innerText.replace(/SIMULADO/g,"").trim();
+      var fecha    = document.getElementById("r-fecha").textContent;
+      var precio   = document.getElementById("r-precio-ref").textContent;
+      var verd     = document.getElementById("r-veredicto-badge").innerHTML;
+      var tecG     = document.getElementById("r-tec-tendencia").textContent + " | S: " + document.getElementById("r-tec-soporte").textContent + " | R: " + document.getElementById("r-tec-resistencia").textContent;
+      var tecA     = document.getElementById("r-tec-analisis").textContent;
+      var fundT    = document.getElementById("r-fund-tasas").textContent;
+      var fundA    = document.getElementById("r-fund-analisis").textContent;
+      var escBase  = document.getElementById("r-esc-base").textContent;
+      var escAlc   = document.getElementById("r-esc-alcista").textContent;
+      var escBaj   = document.getElementById("r-esc-bajista").textContent;
+      var ratio    = document.getElementById("r-ratio-rr").textContent;
+      var concl    = document.getElementById("r-conclusion").textContent;
+      var advHTML  = document.getElementById("r-advertencias").innerHTML;
+
+      _abrirVentanaPDF(
+        "Análisis Clínico de Activos — AHC Intelligence", activo, precio, fecha, verd,
+        "<div class='grid full'><div class='sec'><div class='sec-titulo'>Contexto Técnico</div><p style='font-size:8.5pt;color:#888;margin-bottom:6px'>" + tecG + "</p><p>" + tecA + "</p></div></div>"
+        + "<div class='grid full' style='margin-top:12px'><div class='sec'><div class='sec-titulo'>Contexto Fundamental</div><p style='font-size:8.5pt;color:#888;margin-bottom:6px'>" + fundT + "</p><p>" + fundA + "</p></div></div>"
+        + "<div class='grid full' style='margin-top:12px'><div class='sec'><div class='sec-titulo'>Matriz Riesgo / Retorno</div>"
+        + "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px'>"
+        + "<div style='background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:10px'><div style='font-size:7pt;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px'>Base</div><div style='font-size:8.5pt'>" + escBase + "</div></div>"
+        + "<div style='background:#d4f0e0;border:1px solid #a8dcc0;border-radius:4px;padding:10px'><div style='font-size:7pt;text-transform:uppercase;letter-spacing:1px;color:#1a6e3a;margin-bottom:4px'>Alcista</div><div style='font-size:8.5pt'>" + escAlc + "</div></div>"
+        + "<div style='background:#fde8e8;border:1px solid #f0b0b0;border-radius:4px;padding:10px'><div style='font-size:7pt;text-transform:uppercase;letter-spacing:1px;color:#b02020;margin-bottom:4px'>Bajista</div><div style='font-size:8.5pt'>" + escBaj + "</div></div>"
+        + "</div><div style='font-size:8.5pt;color:#333'>Ratio Riesgo/Retorno: <strong>" + ratio + "</strong></div></div></div>"
+        + "<div class='grid full' style='margin-top:12px'><div class='sec'><div class='sec-titulo'>Conclusión Ejecutiva</div><p>" + concl + "</p></div></div>"
+        + "<div class='grid full' style='margin-top:12px'><div class='sec'><div class='sec-titulo'>Advertencias</div>" + advHTML + "</div></div>"
+      );
+    }
+  </script>
+</body>
+</html>
