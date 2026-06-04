@@ -113,32 +113,55 @@ def procesar_tarea_markets(db, doc_ref, data: dict):
 
 def procesar_tarea_contracts(db, doc_ref, data: dict):
     agent = QuantumContractsAgent(api_key=GEMINI_API_KEY)
-
-    archivo_local = None
-    if data.get("archivo_storage_path"):
-        archivo_local = _descargar_archivo(
-            data["archivo_storage_path"],
-            data.get("archivo_nombre", "contrato.pdf"),
-        )
+    modo  = data.get("modo", "individual")
 
     contexto = {
-        "rol_cliente":        data.get("rol_cliente", ""),
-        "notas_adicionales":  data.get("notas_adicionales", ""),
+        "rol_cliente":       data.get("rol_cliente", ""),
+        "notas_adicionales": data.get("notas_adicionales", ""),
     }
 
-    try:
-        resultado = agent.analizar_contrato(archivo_local or "", contexto)
-    finally:
-        if archivo_local and os.path.exists(archivo_local):
-            os.unlink(archivo_local)
+    if modo == "comparativo":
+        archivo1_local = None
+        archivo2_local = None
+        if data.get("archivo_storage_path"):
+            archivo1_local = _descargar_archivo(
+                data["archivo_storage_path"],
+                data.get("archivo_nombre", "contrato_original.pdf"),
+            )
+        if data.get("archivo2_storage_path"):
+            archivo2_local = _descargar_archivo(
+                data["archivo2_storage_path"],
+                data.get("archivo2_nombre", "contrato_recibido.pdf"),
+            )
+        try:
+            resultado = agent.analizar_contratos_comparativos(
+                archivo1_local or "", archivo2_local or "", contexto
+            )
+        finally:
+            if archivo1_local and os.path.exists(archivo1_local):
+                os.unlink(archivo1_local)
+            if archivo2_local and os.path.exists(archivo2_local):
+                os.unlink(archivo2_local)
+    else:
+        archivo_local = None
+        if data.get("archivo_storage_path"):
+            archivo_local = _descargar_archivo(
+                data["archivo_storage_path"],
+                data.get("archivo_nombre", "contrato.pdf"),
+            )
+        try:
+            resultado = agent.analizar_contrato(archivo_local or "", contexto)
+        finally:
+            if archivo_local and os.path.exists(archivo_local):
+                os.unlink(archivo_local)
 
     doc_ref.update({
-        "status":      "COMPLETADO",
-        "resultado":   resultado,
+        "status":       "COMPLETADO",
+        "resultado":    resultado,
         "procesado_en": firestore.SERVER_TIMESTAMP,
     })
     _descontar_creditos(db, data.get("uid", ""), "contracts")
-    print(f"[CONTRACTS] Completado para uid={data.get('uid')}")
+    print(f"[CONTRACTS] Completado ({modo}) para uid={data.get('uid')}")
 
 
 def procesar_tarea_market_strategy(db, doc_ref, data: dict):

@@ -35,6 +35,8 @@ let _tareaActivaId        = null;
 let _datosCliente         = {};
 let _archivoSeleccionado  = null;
 let _contratoSeleccionado = null;
+let _contratoRecibido     = null;
+let _modoContrato         = "individual";
 let _creditos             = null;
 let _userPlan             = "trial";
 let _trialExpiraDate      = null;
@@ -957,6 +959,43 @@ function limpiarContrato() {
   document.getElementById("drop-zone-contrato").style.display    = "block";
 }
 
+function selectContratoRecibidoFile(file) {
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) {
+    document.getElementById("estado-contratos").textContent = "El archivo supera el límite de 25 MB.";
+    return;
+  }
+  if (!verificarArchivoTrial(file, "estado-contratos")) return;
+  _contratoRecibido = file;
+  mostrarFilePreview(file, "drop-zone-contrato-recibido", "file-preview-contrato-recibido");
+}
+
+function limpiarContratoRecibido() {
+  _contratoRecibido = null;
+  document.getElementById("file-input-contrato-recibido").value = "";
+  document.getElementById("file-preview-contrato-recibido").style.display = "none";
+  document.getElementById("drop-zone-contrato-recibido").style.display    = "block";
+}
+
+function toggleModoContrato(modo) {
+  _modoContrato = modo;
+  document.querySelectorAll(".modo-btn").forEach(function(b) { b.classList.remove("active"); });
+  event.currentTarget.classList.add("active");
+  var fieldRec  = document.getElementById("field-contrato-recibido");
+  var lblOrig   = document.getElementById("label-contrato-original");
+  var btnSubmit = document.querySelector(".btn-submit");
+  if (modo === "comparativo") {
+    if (fieldRec)  fieldRec.style.display  = "block";
+    if (lblOrig)   lblOrig.innerHTML = 'Contrato Original (el que enviaste) <span style="font-weight:400;color:var(--red-txt)">*</span>';
+    if (btnSubmit) btnSubmit.textContent   = "Comparar Contratos con IA";
+  } else {
+    if (fieldRec)  fieldRec.style.display  = "none";
+    if (lblOrig)   lblOrig.innerHTML = 'Contrato a Analizar <span style="font-weight:400;color:var(--red-txt)">*</span>';
+    if (btnSubmit) btnSubmit.textContent   = "Analizar Contrato con IA";
+    limpiarContratoRecibido();
+  }
+}
+
 function mostrarFilePreview(file, dropZoneId, previewId) {
   var icons   = { "application/pdf": "📄", "image/png": "🖼", "image/jpeg": "🖼" };
   var icon    = icons[file.type] || "📎";
@@ -966,7 +1005,7 @@ function mostrarFilePreview(file, dropZoneId, previewId) {
   if (dropEl) dropEl.style.display = "none";
   if (prevEl) {
     prevEl.style.display = "flex";
-    var removeFn = dropZoneId.includes("contrato") ? "limpiarContrato" : dropZoneId.includes("forensic") ? "limpiarForensicDoc" : "limpiarArchivo";
+    var removeFn = dropZoneId.includes("contrato-recibido") ? "limpiarContratoRecibido" : dropZoneId.includes("contrato") ? "limpiarContrato" : dropZoneId.includes("forensic") ? "limpiarForensicDoc" : "limpiarArchivo";
     prevEl.innerHTML =
       '<span class="file-preview-icon">' + icon + '</span>'
       + '<span class="file-preview-name">' + file.name + '</span>'
@@ -1132,6 +1171,11 @@ async function enviarAnalisisContrato(event) {
     estado.textContent = "Debe adjuntar el contrato antes de continuar.";
     return;
   }
+  if (_modoContrato === "comparativo" && !_contratoRecibido) {
+    estado.style.color = "#b02020";
+    estado.textContent = "En modo comparativo debe adjuntar ambos contratos.";
+    return;
+  }
 
   estado.style.color = "";
   estado.className   = "estado-msg activo";
@@ -1139,6 +1183,7 @@ async function enviarAnalisisContrato(event) {
 
   var datos = {
     tipo:              "contracts",
+    modo:              _modoContrato,
     status:            "PENDIENTE",
     uid:               user.uid,
     rol_cliente:       document.getElementById("rol_cliente").value,
@@ -1152,15 +1197,28 @@ async function enviarAnalisisContrato(event) {
   try {
     var info = await subirArchivo(user, ref.id, _contratoSeleccionado, "contratos");
     if (info) await ref.update({ archivo_storage_path: info.path, archivo_nombre: info.nombre, archivo_tipo: info.tipo });
-    estado.textContent = "Contrato subido. Analizando...";
+    estado.textContent = _modoContrato === "comparativo" ? "Contrato original subido..." : "Contrato subido. Analizando...";
   } catch(e) {
     console.warn("[STORAGE]", e);
-    estado.textContent = "Analizando contrato...";
+    estado.textContent = "Procesando...";
+  }
+
+  if (_modoContrato === "comparativo" && _contratoRecibido) {
+    try {
+      estado.textContent = "Subiendo contrato recibido...";
+      var info2 = await subirArchivo(user, ref.id + "_v2", _contratoRecibido, "contratos");
+      if (info2) await ref.update({ archivo2_storage_path: info2.path, archivo2_nombre: info2.nombre });
+      estado.textContent = "Contratos subidos. Comparando...";
+    } catch(e) {
+      console.warn("[STORAGE v2]", e);
+      estado.textContent = "Comparando contratos...";
+    }
   }
 
   document.getElementById("reporte-container").style.display = "none";
   document.getElementById("placeholder-msg").style.display   = "flex";
-  escucharResultadoContratos(ref.id);
+  var modoCaptura = _modoContrato;
+  escucharResultadoContratos(ref.id, modoCaptura);
 }
 
 // ── LISTENERS ────────────────────────────────────────────────────────────────
@@ -1209,14 +1267,18 @@ function escucharResultadoMercados(tareaId) {
   });
 }
 
-function escucharResultadoContratos(tareaId) {
+function escucharResultadoContratos(tareaId, modo) {
   var unsub = db.collection("tareas_pendientes").doc(tareaId).onSnapshot(function(doc) {
     var data = doc.data();
     if (!data) return;
     if (data.status === "COMPLETADO") {
       var el = document.getElementById("estado-contratos");
       el.textContent = "Análisis completado."; el.className = "estado-msg";
-      renderizarReporteContrato(data.resultado);
+      if (modo === "comparativo") {
+        renderizarReporteComparativo(data.resultado);
+      } else {
+        renderizarReporteContrato(data.resultado);
+      }
       unsub();
     } else if (data.status === "ERROR") {
       document.getElementById("estado-contratos").textContent = "Error: " + data.error; unsub();
@@ -1538,6 +1600,91 @@ function renderizarReporteContrato(r) {
 
   if (r.notas_asesor) document.getElementById("r-notas-asesor").value = r.notas_asesor;
 
+  document.getElementById("reporte-individual").style.display  = "block";
+  document.getElementById("reporte-comparativo").style.display = "none";
+  document.getElementById("placeholder-msg").style.display = "none";
+  container.style.display = "block";
+  container.scrollIntoView({ behavior: "smooth" });
+}
+
+function renderizarReporteComparativo(r) {
+  var container = document.getElementById("reporte-container");
+  if (!container) return;
+
+  var esMock = !!(r && r._modo);
+  var ahora  = new Date().toLocaleString("es-UY", { dateStyle: "long", timeStyle: "short" });
+
+  document.getElementById("r-tipo-contrato").innerHTML =
+    "Análisis Comparativo de Contrato" + (esMock ? '<span class="mock-badge">SIMULADO</span>' : "");
+  document.getElementById("r-fecha").textContent = ahora;
+  document.getElementById("r-partes-count").textContent = "";
+
+  var recMap = {
+    "ACEPTAR":  ["badge-rec badge-aceptar",  "✓ ACEPTAR — SIN CAMBIOS CRÍTICOS"],
+    "NEGOCIAR": ["badge-rec badge-negociar", "⚠ NEGOCIAR ANTES DE FIRMAR"],
+    "RECHAZAR": ["badge-rec badge-rechazar", "✕ RECHAZAR — CAMBIOS GRAVES"],
+  };
+  var rec = recMap[r.recomendacion] || ["badge-rec badge-negociar", r.recomendacion || "—"];
+  document.getElementById("r-rec-badge").innerHTML = '<span class="' + rec[0] + '">' + rec[1] + '</span>';
+
+  document.getElementById("rc-resumen").textContent = r.resumen_cambios || "—";
+
+  var impactoClass = function(imp) {
+    if (!imp) return "impacto-neu";
+    var i = imp.toUpperCase();
+    return i === "FAVORABLE" ? "impacto-fav" : i === "DESFAVORABLE" ? "impacto-des" : "impacto-neu";
+  };
+
+  var modEl = document.getElementById("rc-modificadas");
+  var mods  = r.clausulas_modificadas || [];
+  if (mods.length) {
+    modEl.innerHTML = mods.map(function(c) {
+      return '<div class="diff-card">'
+        + '<div class="diff-header">'
+        + '<div class="diff-id">' + c.clausula + '</div>'
+        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + (c.impacto || "NEUTRAL") + '</span>'
+        + '</div>'
+        + '<div class="diff-blocks">'
+        + '<div class="diff-original"><div class="diff-block-label">Original</div>' + (c.texto_original || "—") + '</div>'
+        + '<div class="diff-nuevo"><div class="diff-block-label">Modificado</div>' + (c.texto_nuevo || "—") + '</div>'
+        + '</div>'
+        + (c.descripcion ? '<div class="diff-desc">' + c.descripcion + '</div>' : '')
+        + '</div>';
+    }).join("");
+  } else { modEl.innerHTML = '<p style="color:#555;font-size:0.9rem">No se detectaron cláusulas modificadas.</p>'; }
+
+  var agrEl = document.getElementById("rc-agregadas");
+  var agr   = r.clausulas_agregadas || [];
+  if (agr.length) {
+    agrEl.innerHTML = agr.map(function(c) {
+      return '<div class="clausula-card">'
+        + '<div class="clausula-header">'
+        + '<div class="clausula-nombre">' + c.clausula + '</div>'
+        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + (c.impacto || "NEUTRAL") + '</span>'
+        + '</div>'
+        + (c.texto ? '<div class="clausula-texto">"' + c.texto + '"</div>' : '')
+        + '</div>';
+    }).join("");
+  } else { agrEl.innerHTML = '<div class="item-row"><div class="item-dot dot-green"></div><span>No se agregaron nuevas cláusulas.</span></div>'; }
+
+  var elimEl = document.getElementById("rc-eliminadas");
+  var elim   = r.clausulas_eliminadas || [];
+  if (elim.length) {
+    elimEl.innerHTML = elim.map(function(c) {
+      return '<div class="clausula-card">'
+        + '<div class="clausula-header">'
+        + '<div class="clausula-nombre">' + c.clausula + '</div>'
+        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + (c.impacto || "NEUTRAL") + '</span>'
+        + '</div>'
+        + (c.texto ? '<div class="clausula-texto">"' + c.texto + '"</div>' : '')
+        + '</div>';
+    }).join("");
+  } else { elimEl.innerHTML = '<div class="item-row"><div class="item-dot dot-green"></div><span>No se eliminaron cláusulas.</span></div>'; }
+
+  if (r.notas_asesor) document.getElementById("r-notas-asesor").value = r.notas_asesor;
+
+  document.getElementById("reporte-individual").style.display  = "none";
+  document.getElementById("reporte-comparativo").style.display = "block";
   document.getElementById("placeholder-msg").style.display = "none";
   container.style.display = "block";
   container.scrollIntoView({ behavior: "smooth" });

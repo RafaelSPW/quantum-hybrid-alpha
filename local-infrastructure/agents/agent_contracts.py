@@ -63,6 +63,61 @@ def _mock_contrato(contexto: dict) -> dict:
     }
 
 
+def _mock_comparacion() -> dict:
+    return {
+        "resumen_cambios": (
+            "Se detectaron 3 cláusulas modificadas, 2 cláusulas nuevas y 1 cláusula eliminada respecto al contrato original. "
+            "Los cambios más relevantes incluyen el aumento de la penalidad por rescisión del 20% al 30%, la eliminación de la "
+            "cláusula de confidencialidad y la incorporación de una nueva cláusula de arbitraje obligatorio. "
+            "Se recomienda negociar antes de firmar."
+        ),
+        "recomendacion": "NEGOCIAR",
+        "clausulas_modificadas": [
+            {
+                "clausula": "Cláusula 8.2 — Penalidad por Rescisión",
+                "texto_original": "En caso de rescisión anticipada, el Prestador abonará el 20% del monto restante.",
+                "texto_nuevo": "En caso de rescisión anticipada, el Prestador abonará el 30% del monto total restante del contrato.",
+                "descripcion": "La penalidad aumentó un 50%. El cambio de 'monto restante' a 'monto total' puede implicar una base de cálculo significativamente mayor.",
+                "impacto": "DESFAVORABLE",
+            },
+            {
+                "clausula": "Cláusula 5.3 — Plazo de Pago",
+                "texto_original": "El pago se realizará dentro de los 30 días de recibida la factura.",
+                "texto_nuevo": "El pago se realizará dentro de los 45 días corridos de recibida la factura.",
+                "descripcion": "El plazo de pago se extendió de 30 a 45 días, lo que impacta negativamente el flujo de caja del Prestador.",
+                "impacto": "DESFAVORABLE",
+            },
+            {
+                "clausula": "Cláusula 3.1 — Entregables",
+                "texto_original": "Los entregables serán aprobados por el Contratante en un plazo de 10 días hábiles.",
+                "texto_nuevo": "Los entregables serán aprobados por el Contratante en un plazo de 5 días hábiles.",
+                "descripcion": "Reducción del plazo de aprobación de 10 a 5 días. Este cambio es favorable al Prestador ya que acelera los ciclos de pago.",
+                "impacto": "FAVORABLE",
+            },
+        ],
+        "clausulas_agregadas": [
+            {
+                "clausula": "Cláusula 15.1 — Arbitraje Obligatorio",
+                "texto": "Toda controversia que surja del presente contrato será resuelta mediante arbitraje ante el Centro de Arbitraje y Mediación de la Cámara de Comercio, con sede en la ciudad del Contratante.",
+                "impacto": "NEUTRAL",
+            },
+            {
+                "clausula": "Cláusula 16.2 — Cesión de Contrato",
+                "texto": "El Contratante podrá ceder el presente contrato a cualquier empresa vinculada o subsidiaria sin necesidad de consentimiento previo del Prestador.",
+                "impacto": "DESFAVORABLE",
+            },
+        ],
+        "clausulas_eliminadas": [
+            {
+                "clausula": "Cláusula 11.0 — Confidencialidad",
+                "texto": "Ambas partes se comprometen a mantener la confidencialidad de toda información intercambiada durante la vigencia del contrato y por 2 años posteriores.",
+                "impacto": "DESFAVORABLE",
+            },
+        ],
+        "_modo": "SIMULADO — activar MOCK_MODE=False cuando haya saldo Gemini",
+    }
+
+
 class QuantumContractsAgent:
     def __init__(self, api_key: str):
         if not MOCK_MODE:
@@ -134,6 +189,92 @@ Responde ESTRICTAMENTE en JSON con esta estructura:
 
         resultado = json.loads(response.text)
         print("[CONTRACTS] Análisis completado por Gemini. [OK]")
+        return resultado
+
+    def analizar_contratos_comparativos(self, archivo1_path: str, archivo2_path: str, contexto: dict) -> dict:
+        if MOCK_MODE:
+            print("[MOCK] Generando comparación de contratos simulada...")
+            resultado = _mock_comparacion()
+            print("[CONTRACTS] Comparación mock generada. [OK]")
+            return resultado
+
+        def _leer(path):
+            ext  = Path(path).suffix.lower()
+            mime = "application/pdf" if ext == ".pdf" else "image/jpeg"
+            with open(path, "rb") as f:
+                return f.read(), mime
+
+        bytes1, mime1 = _leer(archivo1_path)
+        bytes2, mime2 = _leer(archivo2_path)
+
+        rol   = contexto.get("rol_cliente", "no especificado")
+        notas = contexto.get("notas_adicionales", "").strip()
+        notas_s = f"\nContexto adicional: {notas}" if notas else ""
+
+        prompt = f"""
+Eres un abogado corporativo senior especializado en contratos comerciales.
+Tu cliente actúa como: {rol}.{notas_s}
+
+Se te proporcionan DOS versiones del mismo contrato:
+- DOCUMENTO 1: Contrato Original (el que tu cliente envió o recibió inicialmente)
+- DOCUMENTO 2: Contrato Modificado (la versión devuelta por la contraparte)
+
+TAREA: Compara ambos documentos cláusula por cláusula e identifica EXACTAMENTE qué cambió.
+
+DETECTA Y REPORTA:
+1. CLÁUSULAS MODIFICADAS: Cláusulas que existen en ambas versiones pero con texto diferente. Para cada una: nombre/número, texto exacto original, texto exacto nuevo, descripción del impacto, e impacto (FAVORABLE / DESFAVORABLE / NEUTRAL para el cliente).
+2. CLÁUSULAS AGREGADAS: Cláusulas que aparecen en el documento 2 pero NO en el documento 1. Texto completo e impacto.
+3. CLÁUSULAS ELIMINADAS: Cláusulas que aparecen en el documento 1 pero fueron REMOVIDAS del documento 2. Texto original e impacto.
+4. RESUMEN DE CAMBIOS: Síntesis ejecutiva de los cambios detectados (3-4 oraciones).
+5. RECOMENDACIÓN: ACEPTAR (cambios menores o favorables), NEGOCIAR (cambios significativos que requieren ajuste) o RECHAZAR (cambios gravemente perjudiciales).
+
+REGLA: Reporta solo diferencias reales. Si un texto es idéntico, no lo menciones.
+
+Responde ESTRICTAMENTE en JSON con esta estructura:
+{{
+    "resumen_cambios": "síntesis ejecutiva de los cambios",
+    "recomendacion": "ACEPTAR | NEGOCIAR | RECHAZAR",
+    "clausulas_modificadas": [
+        {{
+            "clausula": "identificador o nombre de la cláusula",
+            "texto_original": "texto exacto del documento 1",
+            "texto_nuevo": "texto exacto del documento 2",
+            "descripcion": "descripción del impacto del cambio para el cliente",
+            "impacto": "FAVORABLE | DESFAVORABLE | NEUTRAL"
+        }}
+    ],
+    "clausulas_agregadas": [
+        {{
+            "clausula": "identificador o nombre",
+            "texto": "texto completo de la cláusula agregada",
+            "impacto": "FAVORABLE | DESFAVORABLE | NEUTRAL"
+        }}
+    ],
+    "clausulas_eliminadas": [
+        {{
+            "clausula": "identificador o nombre",
+            "texto": "texto completo de la cláusula eliminada",
+            "impacto": "FAVORABLE | DESFAVORABLE | NEUTRAL"
+        }}
+    ]
+}}
+"""
+
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=[
+                types.Part(inline_data=types.Blob(mime_type=mime1, data=bytes1)),
+                types.Part(inline_data=types.Blob(mime_type=mime2, data=bytes2)),
+                types.Part(text=prompt),
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,
+            ),
+        )
+
+        resultado = json.loads(response.text)
+        print("[CONTRACTS] Comparación completada por Gemini. [OK]")
         return resultado
 
 

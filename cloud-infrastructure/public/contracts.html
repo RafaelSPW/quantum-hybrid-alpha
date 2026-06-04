@@ -196,6 +196,34 @@
     .btn-pdf:hover { border-color: var(--accent); color: var(--accent); }
     .mock-badge { display: inline-block; background: var(--amber); color: var(--amber-txt); border: 1px solid var(--amber-txt); font-size: 0.72rem; padding: 2px 8px; margin-left: 8px; vertical-align: middle; font-weight: 700; border-radius: 3px; }
 
+    /* ── MODO SELECTOR ── */
+    .modo-selector { display: flex; margin-bottom: 22px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+    .modo-btn { flex: 1; padding: 11px 6px; background: var(--navy); border: none; color: var(--text-dim); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; cursor: pointer; transition: all .15s; border-right: 1px solid var(--border); line-height: 1.3; }
+    .modo-btn:last-child { border-right: none; }
+    .modo-btn.active { background: var(--accent); color: #fff; }
+    .modo-btn:hover:not(.active) { background: var(--navy-lite); color: var(--text-head); }
+
+    /* ── DIFF / COMPARATIVO ── */
+    .diff-card { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 14px 16px; margin-bottom: 12px; }
+    .diff-card:last-child { margin-bottom: 0; }
+    .diff-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .diff-id { font-weight: 700; color: var(--text-head); font-size: 0.95rem; }
+    .diff-blocks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+    .diff-block-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .diff-original { background: #fff0f0; border-left: 3px solid var(--red-txt); padding: 8px 10px; border-radius: 3px; font-size: 0.82rem; color: var(--text); font-style: italic; line-height: 1.6; }
+    .diff-original .diff-block-label { color: var(--red-txt); }
+    .diff-nuevo    { background: #f0fff4; border-left: 3px solid var(--green-txt); padding: 8px 10px; border-radius: 3px; font-size: 0.82rem; color: var(--text); font-style: italic; line-height: 1.6; }
+    .diff-nuevo    .diff-block-label { color: var(--green-txt); }
+    .diff-desc { font-size: 0.88rem; color: var(--text); line-height: 1.6; }
+    .impacto-badge { display: inline-block; padding: 3px 9px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; white-space: nowrap; flex-shrink: 0; }
+    .impacto-fav { background: var(--green); color: var(--green-txt); }
+    .impacto-des { background: var(--red);   color: var(--red-txt); }
+    .impacto-neu { background: var(--navy-lite); color: var(--text-dim); }
+
+    .badge-aceptar  { background: var(--green); color: var(--green-txt); border-left: 4px solid var(--green-txt); }
+    .badge-negociar { background: var(--amber);  color: var(--amber-txt); border-left: 4px solid var(--amber-txt); }
+    .badge-rechazar { background: var(--red);    color: var(--red-txt);   border-left: 4px solid var(--red-txt); }
+
     @media (max-width: 768px) {
       header { padding: 0 16px; height: 52px; }
       #user-info { display: none !important; }
@@ -211,6 +239,8 @@
       .reporte-top { flex-direction: column; }
       .conclusion-acciones { flex-direction: column; }
       .btn-guardar, .btn-pdf { width: 100%; min-height: 48px; }
+      .modo-btn { min-height: 44px; font-size: 0.72rem; }
+      .diff-blocks { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -237,8 +267,15 @@
 
       <form onsubmit="enviarAnalisisContrato(event)">
 
+        <!-- Modo de análisis -->
+        <div class="modo-selector">
+          <button type="button" class="modo-btn active" onclick="toggleModoContrato('individual')">📋 Análisis Individual</button>
+          <button type="button" class="modo-btn" onclick="toggleModoContrato('comparativo')">🔍 Análisis Comparativo</button>
+        </div>
+
+        <!-- Contrato original / único -->
         <div class="field">
-          <label>Contrato a Analizar <span style="font-weight:400;color:var(--red-txt)">*</span></label>
+          <label id="label-contrato-original">Contrato a Analizar <span style="font-weight:400;color:var(--red-txt)">*</span></label>
           <input type="file" id="file-input-contrato" accept=".pdf,.jpg,.jpeg,.png"
                  onchange="selectContratoFile(this.files[0])" />
           <div class="drop-zone" id="drop-zone-contrato"
@@ -247,10 +284,27 @@
                ondragleave="this.classList.remove('dragover')"
                ondrop="event.preventDefault(); this.classList.remove('dragover'); selectContratoFile(event.dataTransfer.files[0])">
             <div class="drop-zone-icon">📑</div>
-            <div class="drop-zone-label"><strong>Arrastra el contrato aquí</strong> o haz clic</div>
+            <div class="drop-zone-label" id="label-drop-original"><strong>Arrastra el contrato aquí</strong> o haz clic</div>
             <div class="drop-zone-hint">PDF · JPG · PNG — máx. 25 MB</div>
           </div>
           <div id="file-preview-contrato" style="display:none"></div>
+        </div>
+
+        <!-- Contrato recibido (solo modo comparativo) -->
+        <div class="field" id="field-contrato-recibido" style="display:none">
+          <label>Contrato Recibido de vuelta <span style="font-weight:400;color:var(--red-txt)">*</span></label>
+          <input type="file" id="file-input-contrato-recibido" accept=".pdf,.jpg,.jpeg,.png"
+                 onchange="selectContratoRecibidoFile(this.files[0])" />
+          <div class="drop-zone" id="drop-zone-contrato-recibido"
+               onclick="document.getElementById('file-input-contrato-recibido').click()"
+               ondragover="event.preventDefault(); this.classList.add('dragover')"
+               ondragleave="this.classList.remove('dragover')"
+               ondrop="event.preventDefault(); this.classList.remove('dragover'); selectContratoRecibidoFile(event.dataTransfer.files[0])">
+            <div class="drop-zone-icon">📄</div>
+            <div class="drop-zone-label"><strong>Arrastra el contrato recibido</strong> o haz clic</div>
+            <div class="drop-zone-hint">PDF · JPG · PNG — máx. 25 MB</div>
+          </div>
+          <div id="file-preview-contrato-recibido" style="display:none"></div>
         </div>
 
         <div class="field">
@@ -305,46 +359,84 @@
           <div id="r-rec-badge"></div>
         </div>
 
-        <!-- Resumen + Partes -->
-        <div class="reporte-grid full" style="margin-bottom:20px">
-          <div class="seccion">
-            <div class="seccion-titulo">Resumen Ejecutivo</div>
-            <p id="r-resumen">—</p>
-          </div>
-        </div>
+        <!-- ── SECCIÓN INDIVIDUAL ─────────────────────────────────────────── -->
+        <div id="reporte-individual">
 
-        <div class="reporte-grid" style="margin-bottom:20px">
-          <div class="seccion">
-            <div class="seccion-titulo">Partes del Contrato</div>
-            <div id="r-partes"></div>
+          <!-- Resumen + Partes -->
+          <div class="reporte-grid full" style="margin-bottom:20px">
+            <div class="seccion">
+              <div class="seccion-titulo">Resumen Ejecutivo</div>
+              <p id="r-resumen">—</p>
+            </div>
           </div>
-          <div class="seccion">
-            <div class="seccion-titulo">Vacíos Legales</div>
-            <div id="r-vacios"></div>
-          </div>
-        </div>
 
-        <!-- Cláusulas problemáticas -->
-        <div class="reporte-grid full" style="margin-bottom:20px">
-          <div class="seccion">
-            <div class="seccion-titulo">Cláusulas Problemáticas</div>
-            <div id="r-clausulas"></div>
+          <div class="reporte-grid" style="margin-bottom:20px">
+            <div class="seccion">
+              <div class="seccion-titulo">Partes del Contrato</div>
+              <div id="r-partes"></div>
+            </div>
+            <div class="seccion">
+              <div class="seccion-titulo">Vacíos Legales</div>
+              <div id="r-vacios"></div>
+            </div>
           </div>
-        </div>
 
-        <!-- Riesgos + Favorables -->
-        <div class="reporte-grid" style="margin-bottom:20px">
-          <div class="seccion">
-            <div class="seccion-titulo">Riesgos Comerciales</div>
-            <div id="r-riesgos"></div>
+          <!-- Cláusulas problemáticas -->
+          <div class="reporte-grid full" style="margin-bottom:20px">
+            <div class="seccion">
+              <div class="seccion-titulo">Cláusulas Problemáticas</div>
+              <div id="r-clausulas"></div>
+            </div>
           </div>
-          <div class="seccion">
-            <div class="seccion-titulo">Cláusulas Favorables</div>
-            <div id="r-favorables"></div>
-          </div>
-        </div>
 
-        <!-- Notas del asesor -->
+          <!-- Riesgos + Favorables -->
+          <div class="reporte-grid" style="margin-bottom:20px">
+            <div class="seccion">
+              <div class="seccion-titulo">Riesgos Comerciales</div>
+              <div id="r-riesgos"></div>
+            </div>
+            <div class="seccion">
+              <div class="seccion-titulo">Cláusulas Favorables</div>
+              <div id="r-favorables"></div>
+            </div>
+          </div>
+
+        </div><!-- /reporte-individual -->
+
+        <!-- ── SECCIÓN COMPARATIVA ─────────────────────────────────────────── -->
+        <div id="reporte-comparativo" style="display:none">
+
+          <!-- Resumen de cambios -->
+          <div class="reporte-grid full" style="margin-bottom:20px">
+            <div class="seccion">
+              <div class="seccion-titulo">Resumen de Cambios</div>
+              <p id="rc-resumen">—</p>
+            </div>
+          </div>
+
+          <!-- Cláusulas Modificadas -->
+          <div class="reporte-grid full" style="margin-bottom:20px">
+            <div class="seccion">
+              <div class="seccion-titulo">Cláusulas Modificadas</div>
+              <div id="rc-modificadas"></div>
+            </div>
+          </div>
+
+          <!-- Agregadas + Eliminadas -->
+          <div class="reporte-grid" style="margin-bottom:20px">
+            <div class="seccion">
+              <div class="seccion-titulo">Cláusulas Agregadas</div>
+              <div id="rc-agregadas"></div>
+            </div>
+            <div class="seccion">
+              <div class="seccion-titulo">Cláusulas Eliminadas</div>
+              <div id="rc-eliminadas"></div>
+            </div>
+          </div>
+
+        </div><!-- /reporte-comparativo -->
+
+        <!-- Notas del asesor (compartida) -->
         <div class="seccion" style="margin-top:4px">
           <div class="seccion-titulo">Notas del Asesor Responsable</div>
           <div class="conclusion-wrap">
