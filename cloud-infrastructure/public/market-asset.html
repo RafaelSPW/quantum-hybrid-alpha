@@ -172,9 +172,9 @@
 
       <div class="ejemplos">
         <div class="ejemplos-titulo">Ejemplos de consulta</div>
-        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[""]/g,'')">Analiza el panorama actual del EURUSD para los próximos 15 días</div>
-        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[""]/g,'')">¿Conviene entrar en Oro esta semana ante los datos de inflación USA?</div>
-        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[""]/g,'')">¿Qué opinas de Bonos del Tesoro a 2 años en el contexto macro actual?</div>
+        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[\u201C\u201D]/g,'')">Analiza el panorama actual del EURUSD para los próximos 15 días</div>
+        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[\u201C\u201D]/g,'')">¿Conviene entrar en Oro esta semana ante los datos de inflación USA?</div>
+        <div class="ejemplo" onclick="document.getElementById('consulta-activo').value=this.innerText.replace(/[\u201C\u201D]/g,'')">¿Qué opinas de Bonos del Tesoro a 2 años en el contexto macro actual?</div>
       </div>
 
       <form id="activo-form" onsubmit="enviarAnalisisActivo(event)">

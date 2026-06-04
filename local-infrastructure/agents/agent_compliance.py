@@ -12,6 +12,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from agents.fuentes_oficiales_por_pais import formatear_fuentes_para_prompt
+
 # Cambiar a False cuando el saldo de Gemini esté activo
 MOCK_MODE = False
 
@@ -342,7 +344,10 @@ Devuelve ESTRICTAMENTE este JSON (sin texto adicional):
     def _ejecutar_kyb_empresa(self, datos_cliente: dict) -> dict:
         doc_str    = datos_cliente.get('documento', '').strip() or "No proporcionado"
         paises_raw = datos_cliente.get('paises_clave', [])
-        paises_str = ", ".join([p for p in paises_raw if p]) or "No especificados"
+        nacionalidad = datos_cliente.get('nacionalidad', '')
+        todos_paises = list({nacionalidad} | set(paises_raw) - {''}) if nacionalidad else [p for p in paises_raw if p]
+        paises_str = ", ".join(todos_paises) or "No especificados"
+        bloque_fuentes = formatear_fuentes_para_prompt(todos_paises)
 
         prompt = f"""
 Eres un Agente de Inteligencia Financiera especializado en Due Diligence corporativo (KYB — Know Your Business).
@@ -350,8 +355,10 @@ Investiga la siguiente entidad jurídica:
 
 - Razón Social: {datos_cliente['nombre']}
 - RUT / NIF / Registro: {doc_str}
-- País de Constitución: {datos_cliente.get('nacionalidad', 'No especificado')}
+- País de Constitución: {nacionalidad or 'No especificado'}
 - Países con intereses declarados: {paises_str}
+
+{bloque_fuentes}
 
 INSTRUCCIONES OBLIGATORIAS:
 1. Usa Google Search con las siguientes combinaciones de búsqueda obligatorias:
@@ -361,7 +368,7 @@ INSTRUCCIONES OBLIGATORIAS:
    - "{datos_cliente['nombre']}" + "sancionada"
    - "{datos_cliente['nombre']}" + "money laundering"
    - "{datos_cliente['nombre']}" + "sanctioned"
-   - "{datos_cliente['nombre']}" en registros de comercio, Diario Oficial y gacetas oficiales del país.
+   - "{datos_cliente['nombre']}" en los registros de comercio, Diario/Gaceta Oficial y autoridad ALD de cada país listado arriba.
 2. Identifica beneficiarios finales (UBO), directores y socios con participación superior al 25%.
 3. Verifica si la empresa o sus directivos están en listas OFAC, ONU o FATF.
 4. Detecta vinculaciones con jurisdicciones de alto riesgo o esquemas de opacidad societaria.
@@ -395,6 +402,10 @@ Genera JSON estrictamente con esta estructura:
     # ─── KYP: Inmueble ─────────────────────────────────────────────────────────
 
     def _ejecutar_kyp_inmueble(self, datos_cliente: dict) -> dict:
+        pais_inmueble = datos_cliente.get('nacionalidad', '')
+        bloque_fuentes = formatear_fuentes_para_prompt([pais_inmueble]) if pais_inmueble else ""
+        titular = datos_cliente.get('titular', datos_cliente['nombre'])
+
         prompt = f"""
 Eres un Agente de Inteligencia Financiera especializado en riesgo inmobiliario y detección de lavado de activos.
 Analiza el siguiente inmueble:
@@ -402,16 +413,18 @@ Analiza el siguiente inmueble:
 - Descripción: {datos_cliente['nombre']}
 - Dirección / Matrícula: {datos_cliente.get('documento', 'No proporcionada')}
 - Titular Declarado: {datos_cliente.get('titular', 'No especificado')}
-- País: {datos_cliente.get('nacionalidad', 'No especificado')}
+- País: {pais_inmueble or 'No especificado'}
+
+{bloque_fuentes}
 
 INSTRUCCIONES OBLIGATORIAS:
 1. Usa Google Search con las siguientes combinaciones de búsqueda obligatorias sobre el titular:
-   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "lavado de dinero"
-   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "lavado de activos"
-   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "investigado"
-   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "procesado"
-   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "money laundering"
-   - Busca el inmueble en registros de propiedad, catastro y gacetas del país indicado.
+   - "{titular}" + "lavado de dinero"
+   - "{titular}" + "lavado de activos"
+   - "{titular}" + "investigado"
+   - "{titular}" + "procesado"
+   - "{titular}" + "money laundering"
+   - Busca el inmueble y al titular en los registros de propiedad, catastro y fuentes oficiales listadas arriba.
 2. Verifica si el titular figura en listas OFAC, ONU o bases de delitos financieros.
 3. Identifica gravámenes, hipotecas, embargos o litigios vigentes sobre el inmueble.
 4. Analiza consistencia entre el perfil patrimonial conocido del titular y el valor estimado del inmueble.
@@ -512,6 +525,9 @@ Genera JSON estrictamente con esta estructura:
             paises_raw = datos_cliente.get('paises_clave', [])
             paises_str = ", ".join([p for p in paises_raw if p]) or "No especificados — rastrear por nacionalidad"
 
+            todos_paises_kyc = list({datos_cliente['nacionalidad']} | set(paises_raw) - {''})
+            bloque_fuentes_kyc = formatear_fuentes_para_prompt(todos_paises_kyc)
+
             kyc_prompt = f"""
 Eres un Agente de Inteligencia Financiera Avanzado y Compliance Legal.
 Tu misión es investigar a la siguiente persona natural y construir su árbol de riesgo:
@@ -520,6 +536,8 @@ Tu misión es investigar a la siguiente persona natural y construir su árbol de
 - Documento/Pasaporte: {doc_str}
 - Nacionalidad: {datos_cliente['nacionalidad']}
 - Países con intereses comerciales declarados: {paises_str}
+
+{bloque_fuentes_kyc}
 
 INSTRUCCIONES OBLIGATORIAS:
 1. Usa Google Search con las siguientes combinaciones de búsqueda obligatorias:
@@ -530,8 +548,9 @@ INSTRUCCIONES OBLIGATORIAS:
    - "{datos_cliente['nombre']}" + "money laundering"
    - "{datos_cliente['nombre']}" + "indicted"
    - "{datos_cliente['nombre']}" + documento en el país de origen
-2. Si encuentras vinculaciones en otros países (gacetas, registros de comercio), expande la búsqueda
-   para identificar: empresas asociadas, socios, activos, vínculos con PEPs.
+2. Si encuentras vinculaciones en otros países, busca en las fuentes oficiales listadas arriba
+   (Diario Oficial, registro de comercio, autoridad ALD) para identificar: empresas asociadas,
+   socios, activos, vínculos con PEPs.
 3. Contrasta con listas OFAC, ONU, antecedentes de lavado de activos o crimen organizado.
 4. Descarta homónimos que no coincidan con documento o perfil.
 5. Incluye en "empresas_vinculadas" tanto personas físicas vinculadas (funcionarios, colaboradores,
