@@ -22,6 +22,67 @@ SUSPICIOUS_CREATORS = [
 ]
 
 
+def _mock_resultado_empresa(datos_cliente: dict) -> dict:
+    return {
+        "nombre_investigado": datos_cliente['nombre'],
+        "documento": datos_cliente.get('documento', ''),
+        "tipo_entidad": "empresa",
+        "status_evaluacion": "ALERTA_RIESGO",
+        "resumen_ejecutivo": (
+            f"La entidad {datos_cliente['nombre']} (Registro: {datos_cliente.get('documento', 'N/D')}) "
+            f"constituida en {datos_cliente.get('nacionalidad', 'país desconocido')} registra dos beneficiarios "
+            f"finales con participación superior al 25%. Se detectó vinculación con una sociedad en jurisdicción "
+            f"de alta opacidad societaria. La entidad no figura en listas OFAC ni ONU."
+        ),
+        "empresas_vinculadas": [
+            {
+                "nombre_empresa": "Beneficiario Final: Carlos Rodríguez [MOCK]",
+                "pais": datos_cliente.get('nacionalidad', '—'),
+                "socios_detectados": ["Participación: 60%", "Director ejecutivo"],
+            },
+            {
+                "nombre_empresa": "Entidad Relacionada: Offshore Holdings Ltd. [MOCK]",
+                "pais": "Islas Caimán",
+                "socios_detectados": ["Participación indirecta detectada"],
+            },
+        ],
+        "alertas_ofac_crimen": [
+            "Entidad no figura en lista OFAC SDN — verificado",
+            "Jurisdicción relacionada clasificada como alto riesgo por FATF",
+        ],
+        "paises_rastreados_efectivos": [datos_cliente.get('nacionalidad', '—'), "Islas Caimán"],
+        "_modo": "SIMULADO — activar MOCK_MODE=False cuando haya saldo Gemini",
+    }
+
+
+def _mock_resultado_inmueble(datos_cliente: dict) -> dict:
+    return {
+        "nombre_investigado": datos_cliente['nombre'],
+        "documento": datos_cliente.get('documento', ''),
+        "tipo_entidad": "inmueble",
+        "status_evaluacion": "ALERTA_RIESGO",
+        "resumen_ejecutivo": (
+            f"El inmueble '{datos_cliente['nombre']}' registra como titular declarado a "
+            f"{datos_cliente.get('titular', 'titular desconocido')} en {datos_cliente.get('nacionalidad', 'país desconocido')}. "
+            f"Se detectó un gravamen hipotecario vigente constituido en 2022. "
+            f"El origen de fondos del titular presenta inconsistencias con su perfil patrimonial conocido."
+        ),
+        "empresas_vinculadas": [
+            {
+                "nombre_empresa": f"Titular: {datos_cliente.get('titular', 'Desconocido')} [MOCK]",
+                "pais": datos_cliente.get('nacionalidad', '—'),
+                "socios_detectados": ["Adquisición: 2019", "Gravamen hipotecario vigente (2022)"],
+            },
+        ],
+        "alertas_ofac_crimen": [
+            "Titular no figura en listas de sanciones internacionales — verificado",
+            "Operación inmobiliaria bajo análisis por origen de fondos — ALERTA PREVENTIVA",
+        ],
+        "paises_rastreados_efectivos": [datos_cliente.get('nacionalidad', '—')],
+        "_modo": "SIMULADO — activar MOCK_MODE=False cuando haya saldo Gemini",
+    }
+
+
 def _mock_resultado(datos_cliente: dict) -> dict:
     return {
         "nombre_investigado": datos_cliente['nombre'],
@@ -256,6 +317,131 @@ Devuelve ESTRICTAMENTE este JSON (sin texto adicional):
         resultado["metadata_local"] = metadata
         return resultado
 
+    # ─── Extracción de fuentes de grounding ──────────────────────────────────
+
+    def _extraer_fuentes(self, response) -> list:
+        fuentes = []
+        try:
+            for candidate in (response.candidates or []):
+                gm = getattr(candidate, "grounding_metadata", None)
+                if not gm:
+                    continue
+                for chunk in (getattr(gm, "grounding_chunks", None) or []):
+                    web = getattr(chunk, "web", None)
+                    if web and getattr(web, "uri", None):
+                        fuentes.append({
+                            "url":    web.uri,
+                            "titulo": getattr(web, "title", None) or web.uri,
+                        })
+        except Exception as e:
+            print(f"[FUENTES] No se pudieron extraer fuentes: {e}")
+        return fuentes
+
+    # ─── KYB: Empresa ─────────────────────────────────────────────────────────
+
+    def _ejecutar_kyb_empresa(self, datos_cliente: dict) -> dict:
+        doc_str    = datos_cliente.get('documento', '').strip() or "No proporcionado"
+        paises_raw = datos_cliente.get('paises_clave', [])
+        paises_str = ", ".join([p for p in paises_raw if p]) or "No especificados"
+
+        prompt = f"""
+Eres un Agente de Inteligencia Financiera especializado en Due Diligence corporativo (KYB — Know Your Business).
+Investiga la siguiente entidad jurídica:
+
+- Razón Social: {datos_cliente['nombre']}
+- RUT / NIF / Registro: {doc_str}
+- País de Constitución: {datos_cliente.get('nacionalidad', 'No especificado')}
+- Países con intereses declarados: {paises_str}
+
+INSTRUCCIONES OBLIGATORIAS:
+1. Usa Google Search con las siguientes combinaciones de búsqueda obligatorias:
+   - "{datos_cliente['nombre']}" + "lavado de dinero"
+   - "{datos_cliente['nombre']}" + "lavado de activos"
+   - "{datos_cliente['nombre']}" + "investigada"
+   - "{datos_cliente['nombre']}" + "sancionada"
+   - "{datos_cliente['nombre']}" + "money laundering"
+   - "{datos_cliente['nombre']}" + "sanctioned"
+   - "{datos_cliente['nombre']}" en registros de comercio, Diario Oficial y gacetas oficiales del país.
+2. Identifica beneficiarios finales (UBO), directores y socios con participación superior al 25%.
+3. Verifica si la empresa o sus directivos están en listas OFAC, ONU o FATF.
+4. Detecta vinculaciones con jurisdicciones de alto riesgo o esquemas de opacidad societaria.
+5. Busca antecedentes judiciales, administrativos o regulatorios de la entidad.
+
+REGLA CRÍTICA — "resumen_ejecutivo": Solo hechos constatados. PROHIBIDO recomendaciones o juicios de valor.
+
+Genera JSON estrictamente con esta estructura:
+{{
+    "status_evaluacion": "APROBADO" | "ALERTA_RIESGO" | "BLOQUEADO",
+    "resumen_ejecutivo": "...",
+    "empresas_vinculadas": [{{"nombre_empresa": "Beneficiario/Director: Nombre", "pais": "...", "socios_detectados": ["cargo o participación"]}}],
+    "alertas_ofac_crimen": ["..."],
+    "paises_rastreados_efectivos": ["..."]
+}}
+"""
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1,
+            ),
+        )
+        raw = response.text.strip()
+        m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
+        resultado = json.loads(m.group(1) if m else raw)
+        resultado["fuentes"] = self._extraer_fuentes(response)
+        return resultado
+
+    # ─── KYP: Inmueble ─────────────────────────────────────────────────────────
+
+    def _ejecutar_kyp_inmueble(self, datos_cliente: dict) -> dict:
+        prompt = f"""
+Eres un Agente de Inteligencia Financiera especializado en riesgo inmobiliario y detección de lavado de activos.
+Analiza el siguiente inmueble:
+
+- Descripción: {datos_cliente['nombre']}
+- Dirección / Matrícula: {datos_cliente.get('documento', 'No proporcionada')}
+- Titular Declarado: {datos_cliente.get('titular', 'No especificado')}
+- País: {datos_cliente.get('nacionalidad', 'No especificado')}
+
+INSTRUCCIONES OBLIGATORIAS:
+1. Usa Google Search con las siguientes combinaciones de búsqueda obligatorias sobre el titular:
+   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "lavado de dinero"
+   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "lavado de activos"
+   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "investigado"
+   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "procesado"
+   - "{datos_cliente.get('titular', datos_cliente['nombre'])}" + "money laundering"
+   - Busca el inmueble en registros de propiedad, catastro y gacetas del país indicado.
+2. Verifica si el titular figura en listas OFAC, ONU o bases de delitos financieros.
+3. Identifica gravámenes, hipotecas, embargos o litigios vigentes sobre el inmueble.
+4. Analiza consistencia entre el perfil patrimonial conocido del titular y el valor estimado del inmueble.
+5. Detecta señales de lavado: compras en efectivo, sobrevaluación, titulares offshore o múltiples traspasos.
+
+REGLA CRÍTICA — "resumen_ejecutivo": Solo hechos constatados. PROHIBIDO recomendaciones o juicios de valor.
+
+Genera JSON estrictamente con esta estructura:
+{{
+    "status_evaluacion": "APROBADO" | "ALERTA_RIESGO" | "BLOQUEADO",
+    "resumen_ejecutivo": "...",
+    "empresas_vinculadas": [{{"nombre_empresa": "Titular/Gravamen: descripción", "pais": "...", "socios_detectados": ["detalle 1", "detalle 2"]}}],
+    "alertas_ofac_crimen": ["..."],
+    "paises_rastreados_efectivos": ["..."]
+}}
+"""
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1,
+            ),
+        )
+        raw = response.text.strip()
+        m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
+        resultado = json.loads(m.group(1) if m else raw)
+        resultado["fuentes"] = self._extraer_fuentes(response)
+        return resultado
+
     # ─── Investigación principal ──────────────────────────────────────────────
 
     def analizar_forense_standalone(self, archivo_path: str) -> dict:
@@ -275,9 +461,11 @@ Devuelve ESTRICTAMENTE este JSON (sin texto adicional):
     def ejecutar_investigacion_profunda(self, datos_cliente: dict, archivo_path: str = None) -> dict:
         from database.local_cache import buscar_reporte_compliance, guardar_reporte_compliance
 
-        # Cache hit solo si hay documento y el resultado previo no era simulado
+        tipo_entidad = datos_cliente.get("tipo_entidad", "persona")
+
+        # Cache deshabilitada: cada búsqueda siempre genera un análisis fresco
         doc_id = datos_cliente.get("documento", "").strip()
-        if not archivo_path and doc_id:
+        if False and not archivo_path and doc_id:
             cache = buscar_reporte_compliance(doc_id)
             if cache:
                 if "SIMULADO" in str(cache.get("_modo", "")):
@@ -286,7 +474,7 @@ Devuelve ESTRICTAMENTE este JSON (sin texto adicional):
                     print("[CACHE] Cliente encontrado. Retornando datos históricos locales.")
                     return cache
 
-        # Capa 1 siempre local (gratis)
+        # Capa 1 siempre local (gratis, solo relevante para personas con archivo adjunto)
         metadata = None
         if archivo_path and os.path.exists(archivo_path):
             print("[FORENSE] Capa 1: Analizando metadatos del archivo...")
@@ -296,23 +484,35 @@ Devuelve ESTRICTAMENTE este JSON (sin texto adicional):
 
         if MOCK_MODE:
             print("[MOCK] Generando respuesta simulada (sin créditos Gemini)...")
-            resultado = _mock_resultado(datos_cliente)
+            if tipo_entidad == "empresa":
+                resultado = _mock_resultado_empresa(datos_cliente)
+            elif tipo_entidad == "inmueble":
+                resultado = _mock_resultado_inmueble(datos_cliente)
+            else:
+                resultado = _mock_resultado(datos_cliente)
             if archivo_path:
                 resultado["analisis_forense_documental"] = _mock_forense(
                     os.path.basename(archivo_path), metadata
                 )
-            guardar_reporte_compliance(datos_cliente["documento"], datos_cliente["nombre"], resultado)
+            cache_key = datos_cliente.get("documento", "").strip() or datos_cliente["nombre"]
+            guardar_reporte_compliance(cache_key, datos_cliente["nombre"], resultado)
             print("[DATABASE] Guardando reporte mock en base de datos local... [OK]")
             return resultado
 
-        # ── Llamada 1: KYC con Google Search ──────────────────────────────────
-        print("[API GEMINI] Iniciando rastreo KYC transfronterizo...")
+        # ── Llamada principal según tipo de entidad ────────────────────────────
+        if tipo_entidad == "empresa":
+            print("[API GEMINI] Iniciando Due Diligence corporativo (KYB)...")
+            resultado = self._ejecutar_kyb_empresa(datos_cliente)
+        elif tipo_entidad == "inmueble":
+            print("[API GEMINI] Iniciando análisis de riesgo inmobiliario...")
+            resultado = self._ejecutar_kyp_inmueble(datos_cliente)
+        else:
+            print("[API GEMINI] Iniciando rastreo KYC transfronterizo...")
+            doc_str    = datos_cliente.get('documento', '').strip() or "No proporcionado"
+            paises_raw = datos_cliente.get('paises_clave', [])
+            paises_str = ", ".join([p for p in paises_raw if p]) or "No especificados — rastrear por nacionalidad"
 
-        doc_str    = datos_cliente.get('documento', '').strip() or "No proporcionado"
-        paises_raw = datos_cliente.get('paises_clave', [])
-        paises_str = ", ".join([p for p in paises_raw if p]) or "No especificados — rastrear por nacionalidad"
-
-        kyc_prompt = f"""
+            kyc_prompt = f"""
 Eres un Agente de Inteligencia Financiera Avanzado y Compliance Legal.
 Tu misión es investigar a la siguiente persona natural y construir su árbol de riesgo:
 
@@ -322,11 +522,20 @@ Tu misión es investigar a la siguiente persona natural y construir su árbol de
 - Países con intereses comerciales declarados: {paises_str}
 
 INSTRUCCIONES OBLIGATORIAS:
-1. Usa Google Search para rastrear nombre + documento en el país de origen.
+1. Usa Google Search con las siguientes combinaciones de búsqueda obligatorias:
+   - "{datos_cliente['nombre']}" + "lavado de dinero"
+   - "{datos_cliente['nombre']}" + "lavado de activos"
+   - "{datos_cliente['nombre']}" + "procesado"
+   - "{datos_cliente['nombre']}" + "investigado"
+   - "{datos_cliente['nombre']}" + "money laundering"
+   - "{datos_cliente['nombre']}" + "indicted"
+   - "{datos_cliente['nombre']}" + documento en el país de origen
 2. Si encuentras vinculaciones en otros países (gacetas, registros de comercio), expande la búsqueda
    para identificar: empresas asociadas, socios, activos, vínculos con PEPs.
 3. Contrasta con listas OFAC, ONU, antecedentes de lavado de activos o crimen organizado.
 4. Descarta homónimos que no coincidan con documento o perfil.
+5. Incluye en "empresas_vinculadas" tanto personas físicas vinculadas (funcionarios, colaboradores,
+   investigados en conexión) como personas jurídicas (sociedades, empresas).
 
 REGLA CRÍTICA — "resumen_ejecutivo":
 - Solo hechos constatados: qué se encontró, dónde y cuándo.
@@ -341,21 +550,22 @@ Genera JSON estrictamente con esta estructura:
     "paises_rastreados_efectivos": ["..."]
 }}
 """
+            kyc_response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=kyc_prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.1,
+                ),
+            )
+            raw = kyc_response.text.strip()
+            m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
+            resultado = json.loads(m.group(1) if m else raw)
+            resultado["fuentes"] = self._extraer_fuentes(kyc_response)
 
-        kyc_response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=kyc_prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.1,
-            ),
-        )
-        raw = kyc_response.text.strip()
-        import re as _re
-        m = _re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
-        resultado = json.loads(m.group(1) if m else raw)
+        resultado["tipo_entidad"] = tipo_entidad
 
-        # ── Llamada 2: Forense multimodal (si hay archivo) ─────────────────────
+        # ── Forense multimodal (si hay archivo adjunto) ────────────────────────
         if archivo_path and os.path.exists(archivo_path):
             print("[FORENSE] Capas 2-4: Analizando documento con Gemini multimodal...")
             forense = self._analizar_forense_gemini(archivo_path, metadata)

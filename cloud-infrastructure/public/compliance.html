@@ -85,7 +85,7 @@
 
     /* ── PANEL REPORTE ── */
     .panel-reporte { padding: 40px 48px; overflow-y: auto; background: var(--navy); }
-    .placeholder { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; color: var(--border); }
+    .placeholder { min-height: 260px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; color: var(--border); }
     .placeholder p { font-size: 1rem; color: var(--text-dim); }
 
     /* ── REPORTE ── */
@@ -190,6 +190,41 @@
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem; color: var(--text-dim); }
     .meta-item strong { color: var(--text); font-weight: 600; display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
 
+    /* ── LOADING ── */
+    @keyframes ahc-spin { to { transform: rotate(360deg); } }
+    @keyframes ahc-bar  { 0%{left:-40%;width:40%} 60%{left:60%;width:40%} 100%{left:110%;width:40%} }
+    @keyframes ahc-fade { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+    .ahc-spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: ahc-spin .7s linear infinite;
+      vertical-align: middle; margin-right: 7px; flex-shrink: 0;
+    }
+    .loading-panel {
+      min-height: 300px; height: 100%; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px;
+    }
+    .loading-panel.visible { display: flex; }
+    .loading-icon-wrap {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--navy-mid); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      animation: ahc-fade 2s ease-in-out infinite;
+    }
+    .loading-icon-wrap svg { color: var(--accent); }
+    .loading-label { font-size: 0.95rem; font-weight: 600; color: var(--text-dim); letter-spacing: 0.3px; }
+    .loading-sublabel { font-size: 0.82rem; color: var(--border); margin-top: -18px; }
+    .loading-bar-wrap { width: 220px; height: 4px; background: var(--navy-lite); border-radius: 2px; overflow: hidden; position: relative; }
+    .loading-bar-fill  { position: absolute; top:0; height: 100%; width: 40%; background: var(--accent); border-radius: 2px; animation: ahc-bar 1.6s ease-in-out infinite; }
+
+    /* ── TIPO ENTIDAD SELECTOR ── */
+    .tipo-selector { display: flex; margin-bottom: 24px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+    .tipo-btn { flex: 1; padding: 10px 4px; background: var(--navy); border: none; color: var(--text-dim); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; cursor: pointer; transition: all .15s; border-right: 1px solid var(--border); }
+    .tipo-btn:last-child { border-right: none; }
+    .tipo-btn.active { background: var(--accent); color: #fff; }
+    .tipo-btn:hover:not(.active) { background: var(--navy-lite); color: var(--text-head); }
+
     @media (max-width: 768px) {
       header { padding: 0 16px; height: 52px; }
       #user-info { display: none !important; }
@@ -206,6 +241,16 @@
       .meta-grid { grid-template-columns: 1fr; }
       .conclusion-acciones { flex-direction: column; }
       .btn-guardar, .btn-pdf { width: 100%; min-height: 48px; }
+
+      /* Tipo selector mobile */
+      .tipo-selector { margin-bottom: 18px; }
+      .tipo-btn { min-height: 44px; font-size: 0.72rem; letter-spacing: 0.4px; padding: 10px 2px; }
+
+      /* Loading panel mobile — en block layout no tiene altura fija */
+      .loading-panel { height: auto; min-height: 220px; padding: 40px 24px; }
+      .loading-bar-wrap { width: 100%; max-width: 260px; }
+      .loading-label { font-size: 0.9rem; text-align: center; }
+      .loading-sublabel { font-size: 0.78rem; text-align: center; }
     }
   </style>
 </head>
@@ -227,27 +272,77 @@
     <!-- PANEL IZQUIERDO -->
     <div class="panel-form">
       <a href="index.html" class="back">← Panel principal</a>
-      <div class="panel-titulo">Due Diligence KYC / AML</div>
+      <div class="panel-titulo" data-i18n="panel.titulo">Due Diligence KYC / AML</div>
 
       <form onsubmit="enviarInvestigacion(event)">
-        <div class="field">
-          <label>Nombre Completo</label>
-          <input id="nombre" type="text" placeholder="Ej: Juan Ramón Pérez Sosa" required />
-        </div>
-        <div class="field">
-          <label>Documento / Pasaporte <span style="font-weight:400;color:#a0b4c8;letter-spacing:0">(opcional)</span></label>
-          <input id="documento" type="text" placeholder="Ej: 1.234.567-8" />
-        </div>
-        <div class="field">
-          <label>Nacionalidad</label>
-          <input id="nacionalidad" type="text" placeholder="Ej: Argentino" required />
-        </div>
-        <div class="field">
-          <label>Países con intereses (separar con coma) <span style="font-weight:400;color:#a0b4c8;letter-spacing:0">(opcional)</span></label>
-          <input id="paises_clave" type="text" placeholder="Ej: Argentina, Uruguay, Suecia" />
+
+        <div class="tipo-selector">
+          <button type="button" class="tipo-btn active" onclick="toggleTipoEntidad('persona')" data-i18n="tipo.persona">Persona</button>
+          <button type="button" class="tipo-btn" onclick="toggleTipoEntidad('empresa')" data-i18n="tipo.empresa">Empresa</button>
+          <button type="button" class="tipo-btn" onclick="toggleTipoEntidad('inmueble')" data-i18n="tipo.inmueble">Inmueble</button>
         </div>
 
-        <button type="submit" class="btn-submit">Iniciar Investigación con IA</button>
+        <!-- Persona Natural -->
+        <div id="fields-persona">
+          <div class="field">
+            <label data-i18n="p.nombre.label">Nombre Completo</label>
+            <input id="nombre" type="text" data-i18n-ph="p.nombre.ph" placeholder="Ej: Juan Ramón Pérez Sosa" />
+          </div>
+          <div class="field">
+            <label data-i18n="p.doc.label">Documento / Pasaporte <span data-i18n="opcional" style="font-weight:400;color:#a0b4c8;letter-spacing:0">(opcional)</span></label>
+            <input id="documento" type="text" data-i18n-ph="p.doc.ph" placeholder="Ej: 1.234.567-8" />
+          </div>
+          <div class="field">
+            <label data-i18n="p.nac.label">Nacionalidad</label>
+            <input id="nacionalidad" type="text" data-i18n-ph="p.nac.ph" placeholder="Ej: Argentino" />
+          </div>
+          <div class="field">
+            <label data-i18n="p.paises.label">Países con intereses <span data-i18n="opcional.coma" style="font-weight:400;color:#a0b4c8;letter-spacing:0">(opcional, separar con coma)</span></label>
+            <input id="paises_clave" type="text" data-i18n-ph="p.paises.ph" placeholder="Ej: Argentina, Uruguay, Suecia" />
+          </div>
+        </div>
+
+        <!-- Empresa -->
+        <div id="fields-empresa" style="display:none">
+          <div class="field">
+            <label data-i18n="e.nombre.label">Razón Social</label>
+            <input id="empresa_nombre" type="text" data-i18n-ph="e.nombre.ph" placeholder="Ej: Inversiones del Sur S.A." />
+          </div>
+          <div class="field">
+            <label data-i18n="e.rut.label">RUT / NIF / Nº Registro <span data-i18n="opcional" style="font-weight:400;color:#a0b4c8;letter-spacing:0">(opcional)</span></label>
+            <input id="empresa_rut" type="text" data-i18n-ph="e.rut.ph" placeholder="Ej: 214.356.780-2" />
+          </div>
+          <div class="field">
+            <label data-i18n="e.pais.label">País de Constitución</label>
+            <input id="empresa_pais" type="text" data-i18n-ph="e.pais.ph" placeholder="Ej: Uruguay" />
+          </div>
+          <div class="field">
+            <label data-i18n="e.paises.label">Países con intereses <span data-i18n="opcional.coma" style="font-weight:400;color:#a0b4c8;letter-spacing:0">(opcional, separar con coma)</span></label>
+            <input id="empresa_paises_clave" type="text" data-i18n-ph="e.paises.ph" placeholder="Ej: Argentina, Paraguay, España" />
+          </div>
+        </div>
+
+        <!-- Inmueble -->
+        <div id="fields-inmueble" style="display:none">
+          <div class="field">
+            <label data-i18n="i.desc.label">Descripción del Inmueble</label>
+            <input id="inmueble_descripcion" type="text" data-i18n-ph="i.desc.ph" placeholder="Ej: Apartamento 3 dorm., Pocitos, Montevideo" />
+          </div>
+          <div class="field">
+            <label data-i18n="i.dir.label">Dirección / Matrícula <span data-i18n="opcional" style="font-weight:400;color:#a0b4c8;letter-spacing:0">(opcional)</span></label>
+            <input id="inmueble_direccion" type="text" data-i18n-ph="i.dir.ph" placeholder="Ej: Av. Brasil 2856, apto 5B" />
+          </div>
+          <div class="field">
+            <label data-i18n="i.titular.label">Titular Declarado</label>
+            <input id="inmueble_titular" type="text" data-i18n-ph="i.titular.ph" placeholder="Ej: Juan García o Sociedad XYZ" />
+          </div>
+          <div class="field">
+            <label data-i18n="i.pais.label">País</label>
+            <input id="inmueble_pais" type="text" data-i18n-ph="i.pais.ph" placeholder="Ej: Uruguay" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit" id="btn-submit-investigacion" data-i18n="submit.persona">Iniciar Investigación con IA</button>
       </form>
 
       <p id="estado-investigacion" class="estado-msg"></p>
@@ -256,12 +351,26 @@
     <!-- PANEL DERECHO -->
     <div class="panel-reporte">
 
+      <!-- Idle -->
       <div class="placeholder" id="placeholder-msg">
         <svg width="64" height="64" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
         </svg>
-        <p>El informe aparecerá aquí una vez procesada la investigación</p>
+        <p data-i18n="placeholder.msg">El informe aparecerá aquí una vez procesada la investigación</p>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading-panel" id="loading-panel">
+        <div class="loading-icon-wrap">
+          <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+          </svg>
+        </div>
+        <div class="loading-label" id="loading-label">Procesando investigación...</div>
+        <div class="loading-bar-wrap"><div class="loading-bar-fill"></div></div>
+        <div class="loading-sublabel" id="loading-sublabel">Consultando bases de datos y fuentes externas</div>
       </div>
 
       <!-- REPORTE FORMAL -->
@@ -270,11 +379,11 @@
         <!-- Encabezado -->
         <div class="reporte-top">
           <div>
-            <div class="reporte-subtitulo">Informe de Debida Diligencia — KYC / AML</div>
+            <div class="reporte-subtitulo" data-i18n="r.subtitulo">Informe de Debida Diligencia — KYC / AML</div>
             <div class="reporte-nombre" id="r-nombre">—</div>
             <div class="reporte-meta">
-              Documento: <strong id="r-documento">—</strong><br>
-              Generado: <strong id="r-fecha">—</strong>
+              <span id="r-doc-label" data-i18n="r.doc.label">Documento</span>: <strong id="r-documento">—</strong><br>
+              <span data-i18n="r.generado">Generado</span>: <strong id="r-fecha">—</strong>
             </div>
           </div>
           <div id="r-badge"></div>
@@ -283,7 +392,7 @@
         <!-- Fila 1: Resumen + Alertas -->
         <div class="reporte-grid full" style="margin-bottom:24px">
           <div class="seccion">
-            <div class="seccion-titulo">Resumen Ejecutivo</div>
+            <div class="seccion-titulo" data-i18n="r.resumen">Resumen Ejecutivo</div>
             <p id="r-resumen">—</p>
           </div>
         </div>
@@ -291,13 +400,13 @@
         <div class="reporte-grid">
           <!-- Empresas -->
           <div class="seccion">
-            <div class="seccion-titulo">Entidades Vinculadas</div>
+            <div class="seccion-titulo" id="r-entidades-titulo">Entidades Vinculadas</div>
             <div id="r-empresas"></div>
           </div>
 
           <!-- Alertas OFAC -->
           <div class="seccion">
-            <div class="seccion-titulo">OFAC / Sanciones Internacionales</div>
+            <div class="seccion-titulo" data-i18n="r.ofac">OFAC / Sanciones Internacionales</div>
             <div id="r-alertas"></div>
           </div>
         </div>
@@ -305,20 +414,20 @@
         <div class="reporte-grid" style="margin-top:24px">
           <!-- Fuentes -->
           <div class="seccion">
-            <div class="seccion-titulo">Fuentes Consultadas</div>
+            <div class="seccion-titulo" data-i18n="r.fuentes">Fuentes Consultadas</div>
             <div id="r-fuentes"></div>
           </div>
 
           <!-- Países -->
           <div class="seccion">
-            <div class="seccion-titulo">Jurisdicciones Rastreadas</div>
+            <div class="seccion-titulo" data-i18n="r.paises">Jurisdicciones Rastreadas</div>
             <div id="r-paises"></div>
           </div>
         </div>
 
         <!-- Análisis Forense Documental -->
         <div class="seccion forense-seccion" id="seccion-forense" style="margin-top:24px">
-          <div class="seccion-titulo">Análisis Forense Documental — 4 Capas</div>
+          <div class="seccion-titulo" data-i18n="r.forense">Análisis Forense Documental — 4 Capas</div>
           <div id="r-forense-verdict"></div>
           <div class="score-wrap">
             <div class="score-bar-bg"><div class="score-bar-fill" id="r-score-fill" style="width:0%"></div></div>
@@ -326,11 +435,11 @@
           </div>
           <div class="reporte-grid" style="margin-top:16px">
             <div>
-              <div style="font-size:0.75rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px">Metadatos del Archivo (Capa 1)</div>
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px" data-i18n="r.forense.meta">Metadatos del Archivo (Capa 1)</div>
               <div class="meta-grid" id="r-forense-meta"></div>
             </div>
             <div>
-              <div style="font-size:0.75rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px">Anomalías Detectadas (Capas 2–4)</div>
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px" data-i18n="r.forense.anomalias">Anomalías Detectadas (Capas 2–4)</div>
               <div id="r-forense-anomalias"></div>
             </div>
           </div>
@@ -338,12 +447,12 @@
 
         <!-- Conclusión del Asesor -->
         <div class="seccion" style="margin-top:24px">
-          <div class="seccion-titulo">Conclusión del Asesor Responsable</div>
+          <div class="seccion-titulo" data-i18n="r.conclusion">Conclusión del Asesor Responsable</div>
           <div class="conclusion-wrap">
-            <textarea id="r-conclusion" placeholder="Ingrese la conclusión, observaciones adicionales y recomendación final del asesor responsable..."></textarea>
+            <textarea id="r-conclusion" data-i18n-ph="r.conclusion.ph" placeholder="Ingrese la conclusión, observaciones adicionales y recomendación final del asesor responsable..."></textarea>
             <div class="conclusion-acciones">
-              <button class="btn-guardar" onclick="guardarConclusion()">Guardar Conclusión</button>
-              <button class="btn-pdf" onclick="exportarPDF()">Exportar PDF / Imprimir</button>
+              <button class="btn-guardar" onclick="guardarConclusion()" data-i18n="btn.guardar">Guardar Conclusión</button>
+              <button class="btn-pdf" onclick="exportarPDF()" data-i18n="btn.pdf">Exportar PDF / Imprimir</button>
             </div>
           </div>
         </div>

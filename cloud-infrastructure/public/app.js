@@ -39,6 +39,161 @@ let _creditos             = null;
 let _userPlan             = "trial";
 let _trialExpiraDate      = null;
 let _unsubCreditos        = null;
+let _unsubCompliance      = null;
+let _tipoEntidad          = "persona";
+
+// ── SPINNER GLOBAL (para páginas sin loading-panel propio) ────────────────────
+(function() {
+  var s = document.createElement("style");
+  s.textContent =
+    "@keyframes _ahc-spin{to{transform:rotate(360deg)}}" +
+    ".ahc-spinner{display:inline-block;width:13px;height:13px;border:2px solid currentColor;" +
+    "border-top-color:transparent;border-radius:50%;animation:_ahc-spin .7s linear infinite;" +
+    "vertical-align:middle;margin-right:7px;flex-shrink:0}";
+  document.head.appendChild(s);
+})();
+
+function _mostrarLoadingPanel(labelText, sublabelText) {
+  var panel = document.getElementById("loading-panel");
+  var idle  = document.getElementById("placeholder-msg");
+  if (panel) {
+    if (labelText)    document.getElementById("loading-label").textContent    = labelText;
+    if (sublabelText) document.getElementById("loading-sublabel").textContent = sublabelText;
+    panel.classList.add("visible");
+  }
+  if (idle) idle.style.display = "none";
+}
+
+function _ocultarLoadingPanel() {
+  var panel = document.getElementById("loading-panel");
+  if (panel) panel.classList.remove("visible");
+}
+
+// ── INTERNACIONALIZACIÓN (i18n) ───────────────────────────────────────────────
+
+var _lang = (navigator.language || navigator.userLanguage || "es").toLowerCase().startsWith("en") ? "en" : "es";
+
+var _i18n = {
+  es: {
+    "panel.titulo": "Due Diligence KYC / AML",
+    "tipo.persona": "Persona", "tipo.empresa": "Empresa", "tipo.inmueble": "Inmueble",
+    "opcional": "(opcional)", "opcional.coma": "(opcional, separar con coma)",
+    "p.nombre.label": "Nombre Completo",        "p.nombre.ph": "Ej: Juan Ramón Pérez Sosa",
+    "p.doc.label":    "Documento / Pasaporte",   "p.doc.ph":    "Ej: 1.234.567-8",
+    "p.nac.label":    "Nacionalidad",            "p.nac.ph":    "Ej: Argentino",
+    "p.paises.label": "Países con intereses",    "p.paises.ph": "Ej: Argentina, Uruguay, Suecia",
+    "e.nombre.label": "Razón Social",            "e.nombre.ph": "Ej: Inversiones del Sur S.A.",
+    "e.rut.label":    "RUT / NIF / Nº Registro", "e.rut.ph":    "Ej: 214.356.780-2",
+    "e.pais.label":   "País de Constitución",    "e.pais.ph":   "Ej: Uruguay",
+    "e.paises.label": "Países con intereses",    "e.paises.ph": "Ej: Argentina, Paraguay, España",
+    "i.desc.label":   "Descripción del Inmueble","i.desc.ph":   "Ej: Apartamento 3 dorm., Pocitos, Montevideo",
+    "i.dir.label":    "Dirección / Matrícula",   "i.dir.ph":    "Ej: Av. Brasil 2856, apto 5B",
+    "i.titular.label":"Titular Declarado",       "i.titular.ph":"Ej: Juan García o Sociedad XYZ",
+    "i.pais.label":   "País",                    "i.pais.ph":   "Ej: Uruguay",
+    "submit.persona": "Iniciar Investigación con IA",
+    "submit.empresa": "Iniciar Due Diligence Corporativo",
+    "submit.inmueble":"Iniciar Análisis de Inmueble",
+    "placeholder.msg":"El informe aparecerá aquí una vez procesada la investigación",
+    "r.subtitulo":    "Informe de Debida Diligencia — KYC / AML",
+    "r.doc.label":    "Documento", "r.generado": "Generado",
+    "r.resumen":      "Resumen Ejecutivo",
+    "r.entidades.persona": "Entidades Vinculadas",
+    "r.entidades.empresa": "Directivos / Beneficiarios Finales",
+    "r.entidades.inmueble":"Titulares y Gravámenes",
+    "r.ofac":         "OFAC / Sanciones Internacionales",
+    "r.fuentes":      "Fuentes Consultadas",
+    "r.paises":       "Jurisdicciones Rastreadas",
+    "r.forense":      "Análisis Forense Documental — 4 Capas",
+    "r.forense.meta": "Metadatos del Archivo (Capa 1)",
+    "r.forense.anomalias": "Anomalías Detectadas (Capas 2–4)",
+    "r.conclusion":   "Conclusión del Asesor Responsable",
+    "r.conclusion.ph":"Ingrese la conclusión, observaciones adicionales y recomendación final del asesor responsable...",
+    "btn.guardar":    "Guardar Conclusión", "btn.pdf": "Exportar PDF / Imprimir",
+    "status.creando": "Creando tarea...", "status.subiendo": "Subiendo documento forense...",
+    "status.subido":  "Documento subido. Procesando investigación...",
+    "status.procesando": "Investigación en proceso...",
+    "status.sin_doc": "Investigación en proceso (sin documento adjunto)...",
+    "status.completado": "Investigación completada.",
+    "no.entidades":   "No se detectaron entidades vinculadas.",
+    "no.alertas":     "Sin alertas registradas.",
+    "no.fuentes":     "No se registraron fuentes externas.",
+    "badge.aprobado": "APROBADO", "badge.alerta": "ALERTA DE RIESGO", "badge.bloqueado": "BLOQUEADO",
+    "forense.autentico": "✓ Documento Auténtico",
+    "forense.alterado":  "⚠ Posible Alteración Detectada",
+    "forense.pendiente": "— Veredicto Pendiente",
+    "valid.req": "Por favor complete el campo principal de la búsqueda.",
+    "valid.login": "Debes iniciar sesión.",
+    "doc.label.empresa": "RUT / Registro", "doc.label.inmueble": "Dirección / Matrícula",
+    "loading.sublabel": "Consultando bases de datos y fuentes externas",
+  },
+  en: {
+    "panel.titulo": "KYC / AML Due Diligence",
+    "tipo.persona": "Person", "tipo.empresa": "Company", "tipo.inmueble": "Property",
+    "opcional": "(optional)", "opcional.coma": "(optional, comma-separated)",
+    "p.nombre.label": "Full Name",              "p.nombre.ph": "E.g.: John Robert Smith",
+    "p.doc.label":    "ID / Passport",           "p.doc.ph":    "E.g.: 1.234.567-8",
+    "p.nac.label":    "Nationality",             "p.nac.ph":    "E.g.: American",
+    "p.paises.label": "Countries of interest",   "p.paises.ph": "E.g.: USA, UK, Spain",
+    "e.nombre.label": "Company Name",            "e.nombre.ph": "E.g.: Southern Investments Inc.",
+    "e.rut.label":    "Tax ID / Registration No.","e.rut.ph":   "E.g.: 214.356.780-2",
+    "e.pais.label":   "Country of Incorporation","e.pais.ph":   "E.g.: Uruguay",
+    "e.paises.label": "Countries of interest",   "e.paises.ph": "E.g.: Argentina, Paraguay, Spain",
+    "i.desc.label":   "Property Description",    "i.desc.ph":   "E.g.: 3-bedroom apt., Pocitos, Montevideo",
+    "i.dir.label":    "Address / Cadastral Ref.", "i.dir.ph":   "E.g.: 2856 Brasil Ave., apt 5B",
+    "i.titular.label":"Declared Owner",          "i.titular.ph":"E.g.: John Smith or XYZ Corp.",
+    "i.pais.label":   "Country",                 "i.pais.ph":   "E.g.: Uruguay",
+    "submit.persona": "Start AI Investigation",
+    "submit.empresa": "Start Corporate Due Diligence",
+    "submit.inmueble":"Start Property Analysis",
+    "placeholder.msg":"The report will appear here once the investigation is processed",
+    "r.subtitulo":    "Due Diligence Report — KYC / AML",
+    "r.doc.label":    "Document", "r.generado": "Generated",
+    "r.resumen":      "Executive Summary",
+    "r.entidades.persona": "Linked Entities",
+    "r.entidades.empresa": "Directors / Ultimate Beneficial Owners",
+    "r.entidades.inmueble":"Owners and Encumbrances",
+    "r.ofac":         "OFAC / International Sanctions",
+    "r.fuentes":      "Sources Consulted",
+    "r.paises":       "Jurisdictions Traced",
+    "r.forense":      "Document Forensic Analysis — 4 Layers",
+    "r.forense.meta": "File Metadata (Layer 1)",
+    "r.forense.anomalias": "Detected Anomalies (Layers 2–4)",
+    "r.conclusion":   "Responsible Advisor's Conclusion",
+    "r.conclusion.ph":"Enter conclusions, additional observations and final recommendation...",
+    "btn.guardar":    "Save Conclusion", "btn.pdf": "Export PDF / Print",
+    "status.creando": "Creating task...", "status.subiendo": "Uploading forensic document...",
+    "status.subido":  "Document uploaded. Processing investigation...",
+    "status.procesando": "Investigation in progress...",
+    "status.sin_doc": "Investigation in progress (no document attached)...",
+    "status.completado": "Investigation completed.",
+    "no.entidades":   "No linked entities detected.",
+    "no.alertas":     "No alerts recorded.",
+    "no.fuentes":     "No external sources recorded.",
+    "badge.aprobado": "APPROVED", "badge.alerta": "RISK ALERT", "badge.bloqueado": "BLOCKED",
+    "forense.autentico": "✓ Authentic Document",
+    "forense.alterado":  "⚠ Possible Alteration Detected",
+    "forense.pendiente": "— Verdict Pending",
+    "valid.req": "Please fill in the main search field.",
+    "valid.login": "You must be logged in.",
+    "doc.label.empresa": "Tax ID / Registration", "doc.label.inmueble": "Address / Cadastral Ref.",
+    "loading.sublabel": "Consulting databases and external sources",
+  }
+};
+
+function t(key) {
+  return (_i18n[_lang] || _i18n.es)[key] || (_i18n.es)[key] || key;
+}
+
+function aplicarIdioma() {
+  document.querySelectorAll("[data-i18n]").forEach(function(el) {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(function(el) {
+    el.placeholder = t(el.getAttribute("data-i18n-ph"));
+  });
+}
+
+document.addEventListener("DOMContentLoaded", aplicarIdioma);
 
 // ── BANNER MÓVIL ─────────────────────────────────────────────────────────────
 
@@ -857,23 +1012,61 @@ async function subirArchivo(user, tareaId, file, carpeta) {
 
 // ── COMPLIANCE ───────────────────────────────────────────────────────────────
 
+function toggleTipoEntidad(tipo) {
+  _tipoEntidad = tipo;
+  ["persona", "empresa", "inmueble"].forEach(function(t) {
+    document.getElementById("fields-" + t).style.display = t === tipo ? "" : "none";
+  });
+  document.querySelectorAll(".tipo-btn").forEach(function(btn) {
+    btn.classList.toggle("active", btn.getAttribute("onclick").indexOf("'" + tipo + "'") >= 0);
+  });
+  var submitKeys = { persona: "submit.persona", empresa: "submit.empresa", inmueble: "submit.inmueble" };
+  document.getElementById("btn-submit-investigacion").textContent = t(submitKeys[tipo] || "submit.persona");
+}
+
 async function enviarInvestigacion(event) {
   event.preventDefault();
   var user = auth.currentUser;
   if (!user) { alert("Debes iniciar sesión."); return; }
+  if (!user) { alert(t("valid.login")); return; }
   if (!verificarCreditos("compliance")) return;
 
-  _datosCliente = {
-    nombre:       document.getElementById("nombre").value.trim(),
-    documento:    document.getElementById("documento").value.trim(),
-    nacionalidad: document.getElementById("nacionalidad").value.trim(),
-    paises_clave: document.getElementById("paises_clave").value.split(",").map(function(p){ return p.trim(); }),
-  };
+  // Cancelar listener anterior antes de iniciar nueva búsqueda
+  if (_unsubCompliance) { _unsubCompliance(); _unsubCompliance = null; }
+
+  if (_tipoEntidad === "empresa") {
+    _datosCliente = {
+      tipo_entidad: "empresa",
+      nombre:       document.getElementById("empresa_nombre").value.trim(),
+      documento:    document.getElementById("empresa_rut").value.trim(),
+      nacionalidad: document.getElementById("empresa_pais").value.trim(),
+      paises_clave: document.getElementById("empresa_paises_clave").value.split(",").map(function(p){ return p.trim(); }),
+    };
+  } else if (_tipoEntidad === "inmueble") {
+    _datosCliente = {
+      tipo_entidad: "inmueble",
+      nombre:       document.getElementById("inmueble_descripcion").value.trim(),
+      documento:    document.getElementById("inmueble_direccion").value.trim(),
+      titular:      document.getElementById("inmueble_titular").value.trim(),
+      nacionalidad: document.getElementById("inmueble_pais").value.trim(),
+      paises_clave: [],
+    };
+  } else {
+    _datosCliente = {
+      tipo_entidad: "persona",
+      nombre:       document.getElementById("nombre").value.trim(),
+      documento:    document.getElementById("documento").value.trim(),
+      nacionalidad: document.getElementById("nacionalidad").value.trim(),
+      paises_clave: document.getElementById("paises_clave").value.split(",").map(function(p){ return p.trim(); }),
+    };
+  }
+
+  if (!_datosCliente.nombre) { alert(t("valid.req")); return; }
 
   var estado = document.getElementById("estado-investigacion");
   estado.className = "estado-msg activo";
   estado.style.color = "";
-  estado.textContent = "Creando tarea...";
+  estado.textContent = t("status.creando");
 
   var datos = Object.assign({
     tipo: "compliance", status: "PENDIENTE", uid: user.uid,
@@ -884,21 +1077,22 @@ async function enviarInvestigacion(event) {
   _tareaActivaId = ref.id;
 
   if (_archivoSeleccionado) {
-    estado.textContent = "Subiendo documento forense...";
+    estado.innerHTML = '<span class="ahc-spinner"></span>' + t("status.subiendo");
     try {
       var info = await subirArchivo(user, ref.id, _archivoSeleccionado, "documentos");
       if (info) await ref.update({ archivo_storage_path: info.path, archivo_nombre: info.nombre, archivo_tipo: info.tipo });
-      estado.textContent = "Documento subido. Procesando investigación...";
+      estado.innerHTML = '<span class="ahc-spinner"></span>' + t("status.subido");
     } catch(e) {
       console.warn("[STORAGE]", e);
-      estado.textContent = "Investigación en proceso (sin documento adjunto)...";
+      estado.innerHTML = '<span class="ahc-spinner"></span>' + t("status.sin_doc");
     }
   } else {
-    estado.textContent = "Investigación en proceso...";
+    estado.innerHTML = '<span class="ahc-spinner"></span>' + t("status.procesando");
   }
 
   document.getElementById("reporte-container").style.display = "none";
-  document.getElementById("placeholder-msg").style.display   = "flex";
+  document.getElementById("placeholder-msg").style.display   = "none";
+  _mostrarLoadingPanel(t("status.procesando"), t("loading.sublabel"));
   escucharResultadoCompliance(ref.id);
 }
 
@@ -920,7 +1114,7 @@ async function enviarConsultaMercados(event) {
   };
 
   var ref = await db.collection("tareas_pendientes").add(datos);
-  document.getElementById("estado-mercados").textContent = "Consulta enviada. ID: " + ref.id + ". Procesando...";
+  document.getElementById("estado-mercados").innerHTML = '<span class="ahc-spinner"></span>Procesando consulta...';
   escucharResultadoMercados(ref.id);
 }
 
@@ -972,19 +1166,29 @@ async function enviarAnalisisContrato(event) {
 // ── LISTENERS ────────────────────────────────────────────────────────────────
 
 function escucharResultadoCompliance(tareaId) {
+  // Capturar copia del cliente en este momento para evitar que una nueva búsqueda
+  // sobreescriba _datosCliente antes de que este listener complete
+  var datosClienteSnapshot = Object.assign({}, _datosCliente);
   var unsub = db.collection("tareas_pendientes").doc(tareaId).onSnapshot(function(doc) {
     var data = doc.data();
     if (!data) return;
     if (data.status === "COMPLETADO") {
+      _ocultarLoadingPanel();
       var el = document.getElementById("estado-investigacion");
-      el.textContent = "Investigación completada."; el.className = "estado-msg";
-      renderizarReporteCompliance(data.resultado, _datosCliente);
+      el.textContent = t("status.completado"); el.className = "estado-msg";
+      renderizarReporteCompliance(data.resultado, datosClienteSnapshot);
+      _unsubCompliance = null;
       unsub();
     } else if (data.status === "ERROR") {
-      document.getElementById("estado-investigacion").textContent = "Error: " + data.error;
+      _ocultarLoadingPanel();
+      var errEl = document.getElementById("estado-investigacion");
+      errEl.textContent = t("status.error") + " " + data.error; errEl.className = "estado-msg";
+      document.getElementById("placeholder-msg").style.display = "flex";
+      _unsubCompliance = null;
       unsub();
     }
   });
+  _unsubCompliance = unsub;
 }
 
 function escucharResultadoMercados(tareaId) {
@@ -998,6 +1202,9 @@ function escucharResultadoMercados(tareaId) {
       unsub();
     } else if (data.status === "ERROR") {
       document.getElementById("estado-mercados").textContent = "Error: " + data.error; unsub();
+    } else {
+      var em = document.getElementById("estado-mercados");
+      if (em && !em.querySelector(".ahc-spinner")) em.innerHTML = '<span class="ahc-spinner"></span>' + (em.textContent || "Procesando...");
     }
   });
 }
@@ -1013,6 +1220,9 @@ function escucharResultadoContratos(tareaId) {
       unsub();
     } else if (data.status === "ERROR") {
       document.getElementById("estado-contratos").textContent = "Error: " + data.error; unsub();
+    } else {
+      var ec = document.getElementById("estado-contratos");
+      if (ec && !ec.querySelector(".ahc-spinner")) ec.innerHTML = '<span class="ahc-spinner"></span>' + (ec.textContent || "Procesando...");
     }
   });
 }
@@ -1156,7 +1366,8 @@ function renderizarReporteCompliance(r, cliente) {
   if (!container) return;
 
   var esMock = !!r._modo;
-  var ahora  = new Date().toLocaleString("es-UY", { dateStyle: "long", timeStyle: "short" });
+  var locale = _lang === "en" ? "en-US" : "es-UY";
+  var ahora  = new Date().toLocaleString(locale, { dateStyle: "long", timeStyle: "short" });
 
   document.getElementById("r-nombre").innerHTML =
     (r.nombre_investigado || cliente.nombre || "—") +
@@ -1164,9 +1375,19 @@ function renderizarReporteCompliance(r, cliente) {
   document.getElementById("r-documento").textContent = r.documento || cliente.documento || "—";
   document.getElementById("r-fecha").textContent = ahora;
 
-  var badgeMap = { APROBADO: ["badge-aprobado","APROBADO"], ALERTA_RIESGO: ["badge-alerta","ALERTA DE RIESGO"], BLOQUEADO: ["badge-bloqueado","BLOQUEADO"] };
+  var tipoEntidad = r.tipo_entidad || cliente.tipo_entidad || "persona";
+  var badgeMap = {
+    APROBADO:    ["badge-aprobado",  t("badge.aprobado")],
+    ALERTA_RIESGO: ["badge-alerta", t("badge.alerta")],
+    BLOQUEADO:   ["badge-bloqueado", t("badge.bloqueado")]
+  };
   var bd = badgeMap[r.status_evaluacion] || ["badge-alerta", r.status_evaluacion];
   document.getElementById("r-badge").innerHTML = '<span class="badge ' + bd[0] + '">' + bd[1] + '</span>';
+
+  var docLabelEl = document.getElementById("r-doc-label");
+  if (docLabelEl) docLabelEl.textContent = tipoEntidad === "empresa" ? t("doc.label.empresa") : tipoEntidad === "inmueble" ? t("doc.label.inmueble") : t("r.doc.label");
+  var entidadesTituloEl = document.getElementById("r-entidades-titulo");
+  if (entidadesTituloEl) entidadesTituloEl.textContent = t("r.entidades." + tipoEntidad) || t("r.entidades.persona");
 
   document.getElementById("r-resumen").textContent = r.resumen_ejecutivo || "—";
 
@@ -1175,17 +1396,17 @@ function renderizarReporteCompliance(r, cliente) {
     empEl.innerHTML = r.empresas_vinculadas.map(function(e){
       return '<div class="empresa-card"><div class="empresa-nombre">' + e.nombre_empresa + '</div>'
         + '<div class="empresa-pais">' + e.pais + '</div>'
-        + '<div class="empresa-socios">Socios: <strong>' + (e.socios_detectados||[]).join(", ") + '</strong></div></div>';
+        + '<div class="empresa-socios"><strong>' + (e.socios_detectados||[]).join(", ") + '</strong></div></div>';
     }).join("");
-  } else { empEl.innerHTML = '<p style="color:#555;font-size:0.9rem">No se detectaron entidades vinculadas.</p>'; }
+  } else { empEl.innerHTML = '<p style="color:#555;font-size:0.9rem">' + t("no.entidades") + '</p>'; }
 
   var alertEl = document.getElementById("r-alertas");
   if (r.alertas_ofac_crimen && r.alertas_ofac_crimen.length) {
     alertEl.innerHTML = r.alertas_ofac_crimen.map(function(a){
-      var ok = a.toLowerCase().indexOf("ninguna") >= 0 || a.toLowerCase().indexOf("descartado") >= 0;
+      var ok = a.toLowerCase().indexOf("ninguna") >= 0 || a.toLowerCase().indexOf("descartado") >= 0 || a.toLowerCase().indexOf("none") >= 0;
       return '<div class="alerta-row"><div class="dot ' + (ok?"ok":"") + '"></div><span>' + a + '</span></div>';
     }).join("");
-  } else { alertEl.innerHTML = '<div class="alerta-row"><div class="dot ok"></div><span>Sin alertas registradas.</span></div>'; }
+  } else { alertEl.innerHTML = '<div class="alerta-row"><div class="dot ok"></div><span>' + t("no.alertas") + '</span></div>'; }
 
   var fuentesEl = document.getElementById("r-fuentes");
   if (r.fuentes && r.fuentes.length) {
@@ -1193,10 +1414,10 @@ function renderizarReporteCompliance(r, cliente) {
   } else if (esMock) {
     fuentesEl.innerHTML =
       '<a class="url-link" href="https://www.ofac.treas.gov/SDN-List" target="_blank" rel="noopener">OFAC SDN List — U.S. Treasury</a>'
-      + '<a class="url-link" href="https://www.un.org/securitycouncil/sanctions/information" target="_blank" rel="noopener">ONU — Listas de Sanciones</a>'
-      + '<a class="url-link" href="https://www.fatf-gafi.org/en/countries.html" target="_blank" rel="noopener">FATF/GAFI — Países de alto riesgo</a>'
-      + '<p class="url-nota">Las URLs reales aparecerán cuando Gemini API esté activo.</p>';
-  } else { fuentesEl.innerHTML = '<p style="color:#555;font-size:0.9rem">No se registraron fuentes externas.</p>'; }
+      + '<a class="url-link" href="https://www.un.org/securitycouncil/sanctions/information" target="_blank" rel="noopener">UN Security Council — Sanctions</a>'
+      + '<a class="url-link" href="https://www.fatf-gafi.org/en/countries.html" target="_blank" rel="noopener">FATF/GAFI — High-risk countries</a>'
+      + '<p class="url-nota">' + (_lang === "en" ? "Real URLs will appear when Gemini API is active." : "Las URLs reales aparecerán cuando Gemini API esté activo.") + '</p>';
+  } else { fuentesEl.innerHTML = '<p style="color:#555;font-size:0.9rem">' + t("no.fuentes") + '</p>'; }
 
   var paisesEl = document.getElementById("r-paises");
   if (r.paises_rastreados_efectivos && r.paises_rastreados_efectivos.length) {
@@ -1218,9 +1439,9 @@ function renderizarForense(f) {
   seccion.style.display = "block";
 
   var verdictEl = document.getElementById("r-forense-verdict");
-  if (f.documento_autentico === true)       verdictEl.innerHTML = '<div class="forense-verdict forense-autentico">✓ Documento Auténtico</div>';
-  else if (f.documento_autentico === false) verdictEl.innerHTML = '<div class="forense-verdict forense-alterado">⚠ Posible Alteración Detectada</div>';
-  else                                      verdictEl.innerHTML = '<div class="forense-verdict forense-pendiente">— Veredicto Pendiente</div>';
+  if (f.documento_autentico === true)       verdictEl.innerHTML = '<div class="forense-verdict forense-autentico">' + t("forense.autentico") + '</div>';
+  else if (f.documento_autentico === false) verdictEl.innerHTML = '<div class="forense-verdict forense-alterado">'  + t("forense.alterado")  + '</div>';
+  else                                      verdictEl.innerHTML = '<div class="forense-verdict forense-pendiente">' + t("forense.pendiente") + '</div>';
 
   var score   = parseFloat(f.score_confianza_antifraude) || 0;
   var color   = score >= 80 ? "#1a6e3a" : score >= 50 ? "#8a6000" : "#b02020";
