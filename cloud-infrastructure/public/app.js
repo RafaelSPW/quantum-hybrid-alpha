@@ -567,7 +567,7 @@ function mostrarPaywall(motivo) {
     + '<div class="pw-precio">USD 10<span> único</span></div>'
     + '<div class="pw-creditos">1,500 créditos</div>'
     + '<ul class="pw-lista"><li>30 investigaciones KYC</li><li>20 análisis de documentos</li><li>10 contratos</li><li>Sin renovación automática</li></ul>'
-    + '<div id="pp-btn-starter" class="pp-loading">Cargando PayPal...</div>'
+    + '<div id="pp-btn-starter" class="pp-loading">Cargando...</div>'
     + '</div>'
 
     // PACK 5.000
@@ -577,7 +577,7 @@ function mostrarPaywall(motivo) {
     + '<div class="pw-precio">USD 50<span> único</span></div>'
     + '<div class="pw-creditos">5,000 créditos</div>'
     + '<ul class="pw-lista"><li>100 investigaciones KYC</li><li>60 análisis de documentos</li><li>40 contratos</li><li>Sin renovación automática</li></ul>'
-    + '<div id="pp-btn-professional" class="pp-loading">Cargando PayPal...</div>'
+    + '<div id="pp-btn-professional" class="pp-loading">Cargando...</div>'
     + '</div>'
 
     // PACK 25.000
@@ -586,7 +586,7 @@ function mostrarPaywall(motivo) {
     + '<div class="pw-precio">USD 250<span> único</span></div>'
     + '<div class="pw-creditos">25,000 créditos</div>'
     + '<ul class="pw-lista"><li>600 investigaciones KYC</li><li>400 análisis de documentos</li><li>250 contratos</li><li>Sin renovación automática</li></ul>'
-    + '<div id="pp-btn-enterprise" class="pp-loading">Cargando PayPal...</div>'
+    + '<div id="pp-btn-enterprise" class="pp-loading">Cargando...</div>'
     + '</div>'
 
     + '</div>'
@@ -614,7 +614,7 @@ function mostrarPaywall(motivo) {
     +   '</div>'
     + '</div>'
 
-    + '<div class="pw-footer">Pago único · Sin renovación automática · Procesado por PayPal &nbsp;·&nbsp; Contratos institucionales vía SWIFT</div>'
+    + '<div class="pw-footer">Pago único · Sin renovación automática · Pago seguro con tarjeta &nbsp;·&nbsp; Contratos institucionales vía SWIFT</div>'
     + '</div>';
 
   overlay.addEventListener("click", function(e) {
@@ -635,7 +635,7 @@ function _iniciarPayPalSDK() {
   }
   var s = document.createElement("script");
   s.id  = "paypal-sdk-script";
-  s.src = "https://www.paypal.com/sdk/js?client-id=" + PAYPAL_CLIENT_ID + "&intent=capture&currency=USD";
+  s.src = "https://www.paypal.com/sdk/js?client-id=" + PAYPAL_CLIENT_ID + "&intent=capture&currency=USD&disable-funding=paypal,venmo,paylater";
   s.onload  = _renderPayPalBotones;
   s.onerror = function() {
     PAYPAL_PACKS.forEach(function(p) {
@@ -652,7 +652,8 @@ function _renderPayPalBotones() {
     if (!container) return;
     container.innerHTML = "";
     window.paypal.Buttons({
-      style: { shape: "rect", color: "gold", layout: "vertical", label: "pay", height: 40 },
+      fundingSource: window.paypal.FUNDING.CARD,
+      style: { shape: "rect", color: "black", height: 40 },
       createOrder: function(data, actions) {
         return actions.order.create({
           purchase_units: [{
