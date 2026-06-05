@@ -635,7 +635,7 @@ function _iniciarPayPalSDK() {
   }
   var s = document.createElement("script");
   s.id  = "paypal-sdk-script";
-  s.src = "https://www.paypal.com/sdk/js?client-id=" + PAYPAL_CLIENT_ID + "&intent=capture&currency=USD&disable-funding=paypal,venmo,paylater";
+  s.src = "https://www.paypal.com/sdk/js?client-id=" + PAYPAL_CLIENT_ID + "&intent=capture&currency=USD&components=buttons";
   s.onload  = _renderPayPalBotones;
   s.onerror = function() {
     PAYPAL_PACKS.forEach(function(p) {
