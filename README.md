@@ -21,13 +21,17 @@ Auth           Autenticación email/password
 GOOGLE CLOUD RUN (quantumaits · us-central1)
 ──────────────────────────────────────────────────────────────
 quantum-processor   min-instances=1 · siempre activo · 1 GB RAM
+  entrypoint.py         Health check HTTP (PORT) + lanza main_processor
   main_processor.py     Polling loop (10 s) + thread PayPal (30 s)
   paypal_service.py     Monitor de suscripciones PayPal Live
   agents/
-  ├── agent_compliance.py   Gemini 2.5 Flash + Google Search (KYC / Forense)
-  ├── agent_contracts.py    Gemini 2.5 Flash (auditoría de contratos)
-  ├── agent_legal_chat.py   Gemini 2.5 Flash (guía regulatoria)
-  └── agent_markets.py      Gemini 2.5 Flash + Google Search (mercados)
+  ├── agent_compliance.py          Gemini 2.5 Flash + Google Search (KYC / Forense)
+  ├── agent_contracts.py           Gemini 2.5 Flash (auditoría de contratos)
+  ├── agent_legal_chat.py          Gemini 2.5 Flash (guía regulatoria)
+  ├── agent_markets.py             Gemini 2.5 Flash + Google Search (mercados)
+  └── fuentes_oficiales_por_pais.py  Mapeo de fuentes regulatorias por país
+  database/
+  └── local_cache.py               SQLite — caché de reportes KYC
 
 FIRESTORE (colecciones)
 ──────────────────────────────────────────────────────────────
@@ -86,8 +90,8 @@ Browser                   Firestore                  Cloud Run (quantum-processo
 
 ### Caché KYC
 
-Si el documento ya fue investigado, `agent_compliance.py` devuelve el resultado  
-desde SQLite local sin llamar a Gemini (costo $0). Los resultados `SIMULADO` se  
+Si el documento ya fue investigado, `agent_compliance.py` devuelve el resultado
+desde SQLite local sin llamar a Gemini (costo $0). Los resultados `SIMULADO` se
 descartan y se re-analizan con datos reales.
 
 ---
@@ -145,6 +149,8 @@ gcloud run services logs tail quantum-processor --region=us-central1 --project q
 
 ## Setup local (desarrollo)
 
+**Requisitos:** Python 3.11+, cuenta Firebase, cuenta Google Cloud, cuenta PayPal Developer.
+
 ```bash
 cd local-infrastructure
 pip install -r requirements.txt
@@ -185,35 +191,39 @@ python main_processor.py
 ```
 quantum-compliance-saas/
 ├── cloud-infrastructure/
-│   ├── firebase.json           Hosting config + security headers
-│   ├── firestore.rules         Reglas de acceso por UID
+│   ├── firebase.json               Hosting config + security headers
+│   ├── firestore.rules             Reglas de acceso por UID
 │   └── public/
-│       ├── app.js              Lógica frontend + auth + PayPal SDK
-│       ├── index.html
-│       ├── compliance-hub.html
-│       ├── compliance.html
-│       ├── forensic.html
-│       ├── contracts.html
-│       ├── legal-chat.html
-│       ├── markets.html
-│       ├── market-strategy.html
-│       ├── market-asset.html
-│       ├── market-audit.html
+│       ├── app.js                  Lógica frontend + auth + PayPal SDK
+│       ├── index.html              Landing / login
+│       ├── compliance-hub.html     Hub de módulos de compliance
+│       ├── compliance.html         Análisis KYC/AML
+│       ├── forensic.html           Análisis forense
+│       ├── contracts.html          Auditoría de contratos
+│       ├── legal-chat.html         Chat de guía regulatoria
+│       ├── markets.html            Hub de módulos de mercados
+│       ├── market-strategy.html    Estrategia de portafolio
+│       ├── market-asset.html       Análisis de activo individual
+│       ├── market-audit.html       Auditoría de cartera
 │       └── logoqahc.png
 └── local-infrastructure/
-    ├── Dockerfile              Build para Cloud Run
-    ├── entrypoint.py           Health check HTTP + arranca main_processor
-    ├── cloudbuild.yaml         CI/CD con Cloud Build
-    ├── main_processor.py       Polling loop + despacho de agentes
-    ├── paypal_service.py       Monitor de suscripciones PayPal Live
+    ├── Dockerfile                  Build para Cloud Run
+    ├── entrypoint.py               Health check HTTP + arranca main_processor
+    ├── cloudbuild.yaml             CI/CD con Cloud Build
+    ├── main_processor.py           Polling loop + despacho de agentes
+    ├── paypal_service.py           Monitor de suscripciones PayPal Live
     ├── requirements.txt
-    ├── .env                    ← NO subir al repo
-    ├── serviceAccountKey.json  ← NO subir al repo
+    ├── .env                        ← NO subir al repo
+    ├── serviceAccountKey.json      ← NO subir al repo
     ├── agents/
-    │   ├── agent_compliance.py
-    │   ├── agent_contracts.py
-    │   ├── agent_legal_chat.py
-    │   └── agent_markets.py
+    │   ├── __init__.py
+    │   ├── agent_compliance.py     KYC/AML + análisis forense
+    │   ├── agent_contracts.py      Auditoría de contratos
+    │   ├── agent_legal_chat.py     Chat de guía regulatoria
+    │   ├── agent_markets.py        Mercados, activos y carteras
+    │   └── fuentes_oficiales_por_pais.py  Fuentes regulatorias por país
     └── database/
-        └── local_cache.py      SQLite — caché de reportes KYC
+        ├── __init__.py
+        ├── local_cache.py          SQLite — caché de reportes KYC
+        └── compliance_cache.db     ← generado automáticamente, no subir al repo
 ```

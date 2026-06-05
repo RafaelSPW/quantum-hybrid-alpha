@@ -2,42 +2,54 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Tareas pendientes — solo el propietario puede leer y modificar las suyas
-    match /tareas_pendientes/{tareaId} {
-      allow create: if request.auth != null
-                    && request.auth.uid == request.resource.data.uid;
-      allow read, update, delete: if request.auth != null
-                                  && request.auth.uid == resource.data.uid;
+    // ── Helper ─────────────────────────────────────────────────────────────────
+    function esAuth() {
+      return request.auth != null;
     }
 
-    // Resultados — solo lectura del propietario
+    // ── Tareas pendientes ──────────────────────────────────────────────────────
+    // El frontend crea la tarea y luego la actualiza para adjuntar el path del
+    // archivo subido a Storage. El backend solo escribe via Admin SDK (sin reglas).
+    match /tareas_pendientes/{tareaId} {
+      allow create: if esAuth()
+                    && request.auth.uid == request.resource.data.uid;
+      // update: el propietario puede añadir archivo_storage_path, archivo_nombre, etc.
+      allow read, update: if esAuth()
+                          && request.auth.uid == resource.data.uid;
+      allow delete: if false;
+    }
+
+    // ── Resultados (colección legacy, por si acaso) ────────────────────────────
     match /resultados/{resultadoId} {
-      allow read: if request.auth != null
-                  && request.auth.uid == resource.data.uid;
+      allow read:  if esAuth() && request.auth.uid == resource.data.uid;
       allow write: if false;
     }
 
-    // Datos de usuario (créditos, plan)
+    // ── Perfil de usuario (créditos, plan, trial) ──────────────────────────────
+    // El usuario puede leer y escribir solo su propio doc.
+    // El primer registro lo crea el propio usuario al aceptar T&C.
     match /usuarios/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if esAuth() && request.auth.uid == uid;
     }
 
-    // Pagos pendientes — el usuario crea y lee los suyos; el backend borra vía Admin SDK
+    // ── Pagos pendientes ───────────────────────────────────────────────────────
+    // El usuario crea el doc tras capturar el pago PayPal.
+    // El backend lo actualiza/borra via Admin SDK.
     match /pagos_pendientes/{pagoId} {
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
-      allow read:   if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if esAuth() && request.auth.uid == request.resource.data.uid;
+      allow read:   if esAuth() && request.auth.uid == resource.data.uid;
       allow update, delete: if false;
     }
 
-    // Historial de pagos — solo lectura del propietario
+    // ── Historial de pagos — solo lectura del propietario ──────────────────────
     match /pagos/{pagoId} {
-      allow read:  if request.auth != null && request.auth.uid == resource.data.uid;
+      allow read:  if esAuth() && request.auth.uid == resource.data.uid;
       allow write: if false;
     }
 
-    // Leads institucionales — cualquier usuario autenticado puede crear (no leer)
+    // ── Leads institucionales — cualquier usuario autenticado puede crear ───────
     match /leads_institucionales/{leadId} {
-      allow create: if request.auth != null;
+      allow create: if esAuth();
       allow read, update, delete: if false;
     }
   }

@@ -1,0 +1,64 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function esAutenticado() {
+      return request.auth != null;
+    }
+
+    function esPropietario(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function tipoPermitido() {
+      return request.resource.contentType in [
+        'application/pdf',
+        'image/jpeg',
+        'image/png'
+      ];
+    }
+
+    // ── Documentos adjuntos — módulo Compliance KYC/AML ───────────────────────
+    // Path: documentos/{uid}/{tareaId}/{filename}
+    // Límite: 10 MB (coincide con validación frontend)
+
+    match /documentos/{uid}/{tareaId}/{filename} {
+      allow read:  if esAutenticado() && esPropietario(uid);
+      allow write: if esAutenticado()
+                   && esPropietario(uid)
+                   && tipoPermitido()
+                   && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    // ── Documentos forense — módulo Análisis Forense ───────────────────────────
+    // Path: documentos_forense/{uid}/{tareaId}/{filename}
+    // Límite: 10 MB
+
+    match /documentos_forense/{uid}/{tareaId}/{filename} {
+      allow read:  if esAutenticado() && esPropietario(uid);
+      allow write: if esAutenticado()
+                   && esPropietario(uid)
+                   && tipoPermitido()
+                   && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    // ── Contratos — módulo Auditoría de Contratos ──────────────────────────────
+    // Path: contratos/{uid}/{tareaId}/{filename}
+    // Límite: 25 MB (contratos pueden ser PDFs de muchas páginas)
+
+    match /contratos/{uid}/{tareaId}/{filename} {
+      allow read:  if esAutenticado() && esPropietario(uid);
+      allow write: if esAutenticado()
+                   && esPropietario(uid)
+                   && tipoPermitido()
+                   && request.resource.size <= 25 * 1024 * 1024;
+    }
+
+    // ── Bloqueo explícito de todo lo demás ─────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
