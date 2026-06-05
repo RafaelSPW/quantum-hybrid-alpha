@@ -28,13 +28,12 @@ const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 3
 
 // PayPal Live — Client ID público (frontend)
 const PAYPAL_CLIENT_ID = "ASgYio7YMJjMUEPh8cBeG8wjVSHQrblcozu-wdWN_YRyZeNahEoALcX0IVBxLSx2WUqhj89vwDICR_GT";
-// Plan IDs: crear en PayPal → Billing → Subscriptions → Plans y pegar aquí
-const PAYPAL_PLAN_IDS = {
-  starter:      "P-8GL53584124263225NIRKO6Q",
-  professional: "P-0GF18564ED3901707NIRKYBQ",
-  enterprise:   "P-9L677248CE864754UNIRKY2I",
-};
-const PLAN_CREDITOS_MAP = { starter: 1500, professional: 5000, enterprise: 25000 };
+// Packs de créditos — pagos únicos (sin suscripción mensual)
+const PAYPAL_PACKS = [
+  { id: "starter",      creditos: 1500,  precio: "10.00",  label: "Pack 1.500"  },
+  { id: "professional", creditos: 5000,  precio: "50.00",  label: "Pack 5.000"  },
+  { id: "enterprise",   creditos: 25000, precio: "250.00", label: "Pack 25.000" },
+];
 
 const TRIAL_CREDITOS   = 150;
 const TRIAL_DIAS       = 7;
@@ -408,6 +407,15 @@ function _diasRestantesTrial() {
 function actualizarCreditosBadge(creditos, plan, expira) {
   var badge = document.getElementById("creditos-badge");
   if (!badge) return;
+  if (plan === "institucional") {
+    badge.style.display     = "inline-flex";
+    badge.style.color       = "#1a56a0";
+    badge.style.borderColor = "#1a56a0";
+    badge.textContent       = "Ilimitado · Institucional";
+    badge.style.cursor      = "default";
+    badge.onclick           = null;
+    return;
+  }
   var color = creditos > 50 ? "#1a6e3a" : creditos > 10 ? "#8a6000" : "#b02020";
   var planLabel = { trial: "Trial", starter: "Starter", professional: "Professional", enterprise: "Enterprise" }[plan] || plan;
   var extra = "";
@@ -425,6 +433,7 @@ function actualizarCreditosBadge(creditos, plan, expira) {
 }
 
 function verificarCreditos(tipo) {
+  if (_userPlan === "institucional") return true;
   // Primero: trial expirado
   if (_trialExpirado()) {
     mostrarPaywall("expired");
@@ -458,10 +467,10 @@ function verificarArchivoTrial(file, contextoError) {
 function mostrarPaywall(motivo) {
   if (document.getElementById("paywall-overlay")) return; // ya visible
 
-  var titulo = "Seleccioná tu plan para continuar";
+  var titulo = motivo === "manual" ? "Recargá créditos cuando quieras" : "Recargá créditos para continuar";
   var subtitulo = "";
-  if (motivo === "expired")    subtitulo = "Tu período de prueba de 7 días ha finalizado.";
-  else if (motivo === "no_credits") subtitulo = "Agotaste tus créditos disponibles.";
+  if (motivo === "expired")         subtitulo = "Tu período de prueba de 7 días ha finalizado.";
+  else if (motivo === "no_credits") subtitulo = "Agotaste tus créditos disponibles. Elegí un pack para seguir.";
   else if (motivo === "file_limit") subtitulo = "Tu plan Trial no admite archivos mayores a " + TRIAL_MAX_MB + " MB.";
 
   // Inyectar estilos del modal si no existen
@@ -552,31 +561,31 @@ function mostrarPaywall(motivo) {
     + (subtitulo ? '<div class="pw-subtitulo">' + subtitulo + '</div>' : '<div style="margin-bottom:32px"></div>')
     + '<div class="pw-planes">'
 
-    // STARTER
+    // PACK 1.500
     + '<div class="pw-plan">'
-    + '<div class="pw-plan-nombre">Starter</div>'
-    + '<div class="pw-precio">USD 10<span>/mes</span></div>'
-    + '<div class="pw-creditos">1,500 créditos / mes</div>'
-    + '<ul class="pw-lista"><li>30 investigaciones KYC</li><li>20 análisis de documentos</li><li>10 contratos</li><li>Soporte por email</li></ul>'
+    + '<div class="pw-plan-nombre">Pack Básico</div>'
+    + '<div class="pw-precio">USD 10<span> único</span></div>'
+    + '<div class="pw-creditos">1,500 créditos</div>'
+    + '<ul class="pw-lista"><li>30 investigaciones KYC</li><li>20 análisis de documentos</li><li>10 contratos</li><li>Sin renovación automática</li></ul>'
     + '<div id="pp-btn-starter" class="pp-loading">Cargando PayPal...</div>'
     + '</div>'
 
-    // PROFESSIONAL
+    // PACK 5.000
     + '<div class="pw-plan destacado">'
-    + '<div class="pw-badge-hot">🔥 Más elegido</div>'
-    + '<div class="pw-plan-nombre">Professional</div>'
-    + '<div class="pw-precio">USD 50<span>/mes</span></div>'
-    + '<div class="pw-creditos">5,000 créditos / mes</div>'
-    + '<ul class="pw-lista"><li>100 investigaciones KYC</li><li>60 análisis de documentos</li><li>40 contratos</li><li>Soporte prioritario</li></ul>'
+    + '<div class="pw-badge-hot">Mejor valor</div>'
+    + '<div class="pw-plan-nombre">Pack Profesional</div>'
+    + '<div class="pw-precio">USD 50<span> único</span></div>'
+    + '<div class="pw-creditos">5,000 créditos</div>'
+    + '<ul class="pw-lista"><li>100 investigaciones KYC</li><li>60 análisis de documentos</li><li>40 contratos</li><li>Sin renovación automática</li></ul>'
     + '<div id="pp-btn-professional" class="pp-loading">Cargando PayPal...</div>'
     + '</div>'
 
-    // ENTERPRISE
+    // PACK 25.000
     + '<div class="pw-plan">'
-    + '<div class="pw-plan-nombre">Enterprise</div>'
-    + '<div class="pw-precio">USD 250<span>/mes</span></div>'
-    + '<div class="pw-creditos">25,000 créditos / mes</div>'
-    + '<ul class="pw-lista"><li>600 investigaciones KYC</li><li>400 análisis de documentos</li><li>250 contratos</li><li>Multi-usuario + Whitelabel</li></ul>'
+    + '<div class="pw-plan-nombre">Pack Enterprise</div>'
+    + '<div class="pw-precio">USD 250<span> único</span></div>'
+    + '<div class="pw-creditos">25,000 créditos</div>'
+    + '<ul class="pw-lista"><li>600 investigaciones KYC</li><li>400 análisis de documentos</li><li>250 contratos</li><li>Sin renovación automática</li></ul>'
     + '<div id="pp-btn-enterprise" class="pp-loading">Cargando PayPal...</div>'
     + '</div>'
 
@@ -605,7 +614,7 @@ function mostrarPaywall(motivo) {
     +   '</div>'
     + '</div>'
 
-    + '<div class="pw-footer">Pagos SaaS procesados por PayPal &nbsp;·&nbsp; Contratos institucionales vía transferencia SWIFT</div>'
+    + '<div class="pw-footer">Pago único · Sin renovación automática · Procesado por PayPal &nbsp;·&nbsp; Contratos institucionales vía SWIFT</div>'
     + '</div>';
 
   overlay.addEventListener("click", function(e) {
@@ -626,11 +635,11 @@ function _iniciarPayPalSDK() {
   }
   var s = document.createElement("script");
   s.id  = "paypal-sdk-script";
-  s.src = "https://www.paypal.com/sdk/js?client-id=" + PAYPAL_CLIENT_ID + "&vault=true&intent=subscription";
+  s.src = "https://www.paypal.com/sdk/js?client-id=" + PAYPAL_CLIENT_ID + "&intent=capture&currency=USD";
   s.onload  = _renderPayPalBotones;
   s.onerror = function() {
-    ["starter","professional","enterprise"].forEach(function(p) {
-      var el = document.getElementById("pp-btn-" + p);
+    PAYPAL_PACKS.forEach(function(p) {
+      var el = document.getElementById("pp-btn-" + p.id);
       if (el) el.innerHTML = '<div style="color:#b02020;font-size:0.78rem;text-align:center;padding:8px">Error cargando PayPal. Recargá la página.</div>';
     });
   };
@@ -638,50 +647,53 @@ function _iniciarPayPalSDK() {
 }
 
 function _renderPayPalBotones() {
-  ["starter","professional","enterprise"].forEach(function(plan) {
-    var container = document.getElementById("pp-btn-" + plan);
+  PAYPAL_PACKS.forEach(function(pack) {
+    var container = document.getElementById("pp-btn-" + pack.id);
     if (!container) return;
-    var planId = PAYPAL_PLAN_IDS[plan];
-    if (!planId || planId.startsWith("PLAN_ID_")) {
-      container.innerHTML = '<div style="font-size:0.75rem;color:#a0b4c8;text-align:center;padding:10px 0">Disponible próximamente</div>';
-      return;
-    }
     container.innerHTML = "";
     window.paypal.Buttons({
-      style: { shape: "rect", color: "gold", layout: "vertical", label: "subscribe", height: 40 },
-      createSubscription: function(data, actions) {
-        return actions.subscription.create({ plan_id: planId });
+      style: { shape: "rect", color: "gold", layout: "vertical", label: "pay", height: 40 },
+      createOrder: function(data, actions) {
+        return actions.order.create({
+          purchase_units: [{
+            description: pack.label + " — AHC Intelligence",
+            amount: { value: pack.precio, currency_code: "USD" },
+          }],
+        });
       },
-      onApprove: function(data) {
-        _procesarAprobacionPayPal(plan, data.subscriptionID);
+      onApprove: function(data, actions) {
+        return actions.order.capture().then(function(details) {
+          _procesarPagoPayPal(pack.id, details.id, pack.creditos);
+        });
       },
       onError: function(err) {
         console.error("[PayPal]", err);
         if (container) container.innerHTML = '<div style="color:#b02020;font-size:0.78rem;text-align:center;padding:8px">Error al procesar. Intentá de nuevo.</div>';
       }
-    }).render("#pp-btn-" + plan);
+    }).render("#pp-btn-" + pack.id);
   });
 }
 
-function _procesarAprobacionPayPal(plan, subscriptionId) {
+function _procesarPagoPayPal(packId, orderId, creditos) {
   var user = firebase.auth().currentUser;
   if (!user) return;
   var overlay = document.getElementById("paywall-overlay");
   if (overlay) {
     overlay.innerHTML = '<div id="paywall-modal" style="text-align:center;padding:64px 44px;max-width:480px;width:100%">'
       + '<div style="font-size:2.2rem;margin-bottom:16px">⏳</div>'
-      + '<div style="font-size:1.25rem;font-weight:700;color:#040d18;margin-bottom:10px">Activando tu plan ' + plan.charAt(0).toUpperCase() + plan.slice(1) + '...</div>'
-      + '<div style="font-size:0.9rem;color:#3a5068;line-height:1.7">Verificando el pago con PayPal.<br>Esto puede demorar hasta 1 minuto.<br>No cierres esta ventana.</div>'
+      + '<div style="font-size:1.25rem;font-weight:700;color:#040d18;margin-bottom:10px">Acreditando ' + creditos.toLocaleString() + ' créditos...</div>'
+      + '<div style="font-size:0.9rem;color:#3a5068;line-height:1.7">Verificando el pago con PayPal.<br>Los créditos aparecerán en segundos.<br>No cierres esta ventana.</div>'
       + '</div>';
   }
-  db.collection("suscripciones_pendientes").doc(user.uid).set({
-    plan:          plan,
-    subscription_id: subscriptionId,
-    uid:           user.uid,
-    email:         user.email || "",
+  db.collection("pagos_pendientes").add({
+    pack_id:      packId,
+    order_id:     orderId,
+    creditos:     creditos,
+    uid:          user.uid,
+    email:        user.email || "",
     solicitado_en: firebase.firestore.FieldValue.serverTimestamp(),
   }).then(function() {
-    setTimeout(cerrarPaywall, 4000);
+    setTimeout(cerrarPaywall, 5000);
   }).catch(function() {
     cerrarPaywall();
   });

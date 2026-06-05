@@ -22,14 +22,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Suscripciones pendientes — el usuario escribe la suya
-    match /suscripciones_pendientes/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // Pagos pendientes — el usuario crea y lee los suyos; el backend borra vía Admin SDK
+    match /pagos_pendientes/{pagoId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read:   if request.auth != null && request.auth.uid == resource.data.uid;
+      allow update, delete: if false;
     }
 
-    // Historial de suscripciones — solo lectura del propietario
-    match /suscripciones/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+    // Historial de pagos — solo lectura del propietario
+    match /pagos/{pagoId} {
+      allow read:  if request.auth != null && request.auth.uid == resource.data.uid;
       allow write: if false;
     }
 
