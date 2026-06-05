@@ -1,0 +1,36 @@
+steps:
+  # 1. Build the container image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - build
+      - -t
+      - "us-central1-docker.pkg.dev/$PROJECT_ID/quantum-compliance/processor:$COMMIT_SHA"
+      - .
+
+  # 2. Push to Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - push
+      - "us-central1-docker.pkg.dev/$PROJECT_ID/quantum-compliance/processor:$COMMIT_SHA"
+
+  # 3. Deploy to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - quantum-processor
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/quantum-compliance/processor:$COMMIT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --no-allow-unauthenticated
+      - --min-instances=1
+      - --max-instances=1
+      - --memory=1Gi
+      - --cpu=1
+      - --timeout=540
+      - --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest,PAYPAL_CLIENT_ID=PAYPAL_CLIENT_ID:latest,PAYPAL_CLIENT_SECRET=PAYPAL_CLIENT_SECRET:latest,FIREBASE_CREDENTIALS_JSON=FIREBASE_CREDENTIALS_JSON:latest
+      - --set-env-vars=FIREBASE_STORAGE_BUCKET=agenteahc.firebasestorage.app
+
+images:
+  - "us-central1-docker.pkg.dev/$PROJECT_ID/quantum-compliance/processor:$COMMIT_SHA"

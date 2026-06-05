@@ -22,8 +22,12 @@ from database.local_cache     import init_db, guardar_reporte_compliance, buscar
 from paypal_service           import monitorear_suscripciones
 
 GEMINI_API_KEY       = os.getenv("GEMINI_API_KEY")
-FIREBASE_CREDENTIALS = os.getenv("FIREBASE_ADMIN_CREDENTIALS", "./serviceAccountKey.json")
 FIREBASE_BUCKET      = os.getenv("FIREBASE_STORAGE_BUCKET", "agenteahc.firebasestorage.app")
+
+# Soporta credenciales como base64 (Cloud Run), JSON string, o archivo físico (local)
+_FIREBASE_CREDENTIALS_B64  = os.getenv("FIREBASE_CREDENTIALS_B64")
+_FIREBASE_CREDENTIALS_JSON = os.getenv("FIREBASE_CREDENTIALS_JSON")
+_FIREBASE_CREDENTIALS_FILE = os.getenv("FIREBASE_ADMIN_CREDENTIALS", "./serviceAccountKey.json")
 POLL_INTERVAL_SECONDS = 10
 
 # Costo en créditos por tipo de tarea
@@ -40,7 +44,14 @@ CREDIT_COSTS = {
 
 
 def init_firebase():
-    cred = credentials.Certificate(FIREBASE_CREDENTIALS)
+    if _FIREBASE_CREDENTIALS_B64:
+        import base64, json
+        cred = credentials.Certificate(json.loads(base64.b64decode(_FIREBASE_CREDENTIALS_B64)))
+    elif _FIREBASE_CREDENTIALS_JSON:
+        import json
+        cred = credentials.Certificate(json.loads(_FIREBASE_CREDENTIALS_JSON))
+    else:
+        cred = credentials.Certificate(_FIREBASE_CREDENTIALS_FILE)
     firebase_admin.initialize_app(cred, {"storageBucket": FIREBASE_BUCKET})
     return firestore.client()
 

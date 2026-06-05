@@ -13,6 +13,16 @@ const db      = firebase.firestore();
 const auth    = firebase.auth();
 const storage = typeof firebase.storage === "function" ? firebase.storage() : null;
 
+function escHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function safeUrl(url) {
+  if (!url) return "#";
+  var u = String(url).trim();
+  return /^javascript:/i.test(u) ? "#" : u;
+}
+
 // Costo de créditos por tipo de tarea
 const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 30, forensic: 25, market_strategy: 75, market_asset: 30, market_audit: 75 };
 
@@ -20,14 +30,15 @@ const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 3
 const PAYPAL_CLIENT_ID = "ASgYio7YMJjMUEPh8cBeG8wjVSHQrblcozu-wdWN_YRyZeNahEoALcX0IVBxLSx2WUqhj89vwDICR_GT";
 // Plan IDs: crear en PayPal → Billing → Subscriptions → Plans y pegar aquí
 const PAYPAL_PLAN_IDS = {
-  starter:      "PLAN_ID_STARTER_AQUI",
-  professional: "PLAN_ID_PRO_AQUI",
-  enterprise:   "PLAN_ID_ENT_AQUI",
+  starter:      "P-8GL53584124263225NIRKO6Q",
+  professional: "P-0GF18564ED3901707NIRKYBQ",
+  enterprise:   "P-9L677248CE864754UNIRKY2I",
 };
 const PLAN_CREDITOS_MAP = { starter: 1500, professional: 5000, enterprise: 25000 };
 
 const TRIAL_CREDITOS   = 150;
 const TRIAL_DIAS       = 7;
+const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
 const TRIAL_MAX_MB     = 5;      // MB máx por archivo en plan trial
 const TRIAL_MAX_BYTES  = TRIAL_MAX_MB * 1024 * 1024;
 
@@ -924,6 +935,10 @@ function enviarLeadInstitucional() {
 
 function selectArchivoForense(file) {
   if (!file) return;
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+    document.getElementById("estado-investigacion").textContent = "Tipo de archivo no permitido. Solo PDF, JPG y PNG.";
+    return;
+  }
   if (file.size > 10 * 1024 * 1024) {
     document.getElementById("estado-investigacion").textContent = "El archivo supera el límite de 10 MB.";
     return;
@@ -943,6 +958,10 @@ function limpiarArchivo() {
 
 function selectContratoFile(file) {
   if (!file) return;
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+    document.getElementById("estado-contratos").textContent = "Tipo de archivo no permitido. Solo PDF, JPG y PNG.";
+    return;
+  }
   if (file.size > 25 * 1024 * 1024) {
     document.getElementById("estado-contratos").textContent = "El archivo supera el límite de 25 MB.";
     return;
@@ -961,6 +980,10 @@ function limpiarContrato() {
 
 function selectContratoRecibidoFile(file) {
   if (!file) return;
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+    document.getElementById("estado-contratos").textContent = "Tipo de archivo no permitido. Solo PDF, JPG y PNG.";
+    return;
+  }
   if (file.size > 25 * 1024 * 1024) {
     document.getElementById("estado-contratos").textContent = "El archivo supera el límite de 25 MB.";
     return;
@@ -1008,8 +1031,8 @@ function mostrarFilePreview(file, dropZoneId, previewId) {
     var removeFn = dropZoneId.includes("contrato-recibido") ? "limpiarContratoRecibido" : dropZoneId.includes("contrato") ? "limpiarContrato" : dropZoneId.includes("forensic") ? "limpiarForensicDoc" : "limpiarArchivo";
     prevEl.innerHTML =
       '<span class="file-preview-icon">' + icon + '</span>'
-      + '<span class="file-preview-name">' + file.name + '</span>'
-      + '<span class="file-preview-size">' + sizeMB + ' MB</span>'
+      + '<span class="file-preview-name">' + escHtml(file.name) + '</span>'
+      + '<span class="file-preview-size">' + escHtml(sizeMB) + ' MB</span>'
       + '<span class="file-remove" onclick="' + removeFn + '()" title="Quitar">✕</span>';
   }
 }
@@ -1020,6 +1043,10 @@ var _forenseSeleccionado = null;
 
 function selectForensicDoc(file) {
   if (!file) return;
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+    document.getElementById("estado-forensic").textContent = "Tipo de archivo no permitido. Solo PDF, JPG y PNG.";
+    return;
+  }
   if (file.size > 10 * 1024 * 1024) {
     document.getElementById("estado-forensic").textContent = "El archivo supera el límite de 10 MB.";
     return;
@@ -1432,7 +1459,7 @@ function renderizarReporteCompliance(r, cliente) {
   var ahora  = new Date().toLocaleString(locale, { dateStyle: "long", timeStyle: "short" });
 
   document.getElementById("r-nombre").innerHTML =
-    (r.nombre_investigado || cliente.nombre || "—") +
+    escHtml(r.nombre_investigado || cliente.nombre || "—") +
     (esMock ? '<span class="mock-badge">SIMULADO</span>' : "");
   document.getElementById("r-documento").textContent = r.documento || cliente.documento || "—";
   document.getElementById("r-fecha").textContent = ahora;
@@ -1444,7 +1471,7 @@ function renderizarReporteCompliance(r, cliente) {
     BLOQUEADO:   ["badge-bloqueado", t("badge.bloqueado")]
   };
   var bd = badgeMap[r.status_evaluacion] || ["badge-alerta", r.status_evaluacion];
-  document.getElementById("r-badge").innerHTML = '<span class="badge ' + bd[0] + '">' + bd[1] + '</span>';
+  document.getElementById("r-badge").innerHTML = '<span class="badge ' + bd[0] + '">' + escHtml(bd[1]) + '</span>';
 
   var docLabelEl = document.getElementById("r-doc-label");
   if (docLabelEl) docLabelEl.textContent = tipoEntidad === "empresa" ? t("doc.label.empresa") : tipoEntidad === "inmueble" ? t("doc.label.inmueble") : t("r.doc.label");
@@ -1456,9 +1483,9 @@ function renderizarReporteCompliance(r, cliente) {
   var empEl = document.getElementById("r-empresas");
   if (r.empresas_vinculadas && r.empresas_vinculadas.length) {
     empEl.innerHTML = r.empresas_vinculadas.map(function(e){
-      return '<div class="empresa-card"><div class="empresa-nombre">' + e.nombre_empresa + '</div>'
-        + '<div class="empresa-pais">' + e.pais + '</div>'
-        + '<div class="empresa-socios"><strong>' + (e.socios_detectados||[]).join(", ") + '</strong></div></div>';
+      return '<div class="empresa-card"><div class="empresa-nombre">' + escHtml(e.nombre_empresa) + '</div>'
+        + '<div class="empresa-pais">' + escHtml(e.pais) + '</div>'
+        + '<div class="empresa-socios"><strong>' + escHtml((e.socios_detectados||[]).join(", ")) + '</strong></div></div>';
     }).join("");
   } else { empEl.innerHTML = '<p style="color:#555;font-size:0.9rem">' + t("no.entidades") + '</p>'; }
 
@@ -1466,13 +1493,13 @@ function renderizarReporteCompliance(r, cliente) {
   if (r.alertas_ofac_crimen && r.alertas_ofac_crimen.length) {
     alertEl.innerHTML = r.alertas_ofac_crimen.map(function(a){
       var ok = a.toLowerCase().indexOf("ninguna") >= 0 || a.toLowerCase().indexOf("descartado") >= 0 || a.toLowerCase().indexOf("none") >= 0;
-      return '<div class="alerta-row"><div class="dot ' + (ok?"ok":"") + '"></div><span>' + a + '</span></div>';
+      return '<div class="alerta-row"><div class="dot ' + (ok?"ok":"") + '"></div><span>' + escHtml(a) + '</span></div>';
     }).join("");
   } else { alertEl.innerHTML = '<div class="alerta-row"><div class="dot ok"></div><span>' + t("no.alertas") + '</span></div>'; }
 
   var fuentesEl = document.getElementById("r-fuentes");
   if (r.fuentes && r.fuentes.length) {
-    fuentesEl.innerHTML = r.fuentes.map(function(f){ return '<a class="url-link" href="' + f.url + '" target="_blank" rel="noopener">' + (f.titulo||f.url) + '</a>'; }).join("");
+    fuentesEl.innerHTML = r.fuentes.map(function(f){ return '<a class="url-link" href="' + escHtml(safeUrl(f.url)) + '" target="_blank" rel="noopener">' + escHtml(f.titulo||f.url) + '</a>'; }).join("");
   } else if (esMock) {
     fuentesEl.innerHTML =
       '<a class="url-link" href="https://www.ofac.treas.gov/SDN-List" target="_blank" rel="noopener">OFAC SDN List — U.S. Treasury</a>'
@@ -1483,7 +1510,7 @@ function renderizarReporteCompliance(r, cliente) {
 
   var paisesEl = document.getElementById("r-paises");
   if (r.paises_rastreados_efectivos && r.paises_rastreados_efectivos.length) {
-    paisesEl.innerHTML = r.paises_rastreados_efectivos.map(function(p){ return '<span class="pais-tag">' + p + '</span>'; }).join("");
+    paisesEl.innerHTML = r.paises_rastreados_efectivos.map(function(p){ return '<span class="pais-tag">' + escHtml(p) + '</span>'; }).join("");
   } else { paisesEl.innerHTML = '<p style="color:#555;font-size:0.9rem">—</p>'; }
 
   renderizarForense(r.analisis_forense_documental);
@@ -1515,10 +1542,10 @@ function renderizarForense(f) {
   var meta   = f.metadata_local || {};
   var metaEl = document.getElementById("r-forense-meta");
   metaEl.innerHTML =
-    '<div class="meta-item"><strong>Software / Creador</strong>' + (meta.creador_detectado||"—") + '</div>'
-    + '<div class="meta-item"><strong>Fecha de Creación</strong>' + (meta.fecha_creacion||"—") + '</div>'
-    + '<div class="meta-item"><strong>Fecha de Modificación</strong>' + (meta.fecha_modificacion||"—") + '</div>'
-    + '<div class="meta-item"><strong>Señales Locales</strong>' + ((meta.señales_sospechosas||[]).length||"0") + ' detectadas</div>';
+    '<div class="meta-item"><strong>Software / Creador</strong>' + escHtml(meta.creador_detectado||"—") + '</div>'
+    + '<div class="meta-item"><strong>Fecha de Creación</strong>' + escHtml(meta.fecha_creacion||"—") + '</div>'
+    + '<div class="meta-item"><strong>Fecha de Modificación</strong>' + escHtml(meta.fecha_modificacion||"—") + '</div>'
+    + '<div class="meta-item"><strong>Señales Locales</strong>' + escHtml((meta.señales_sospechosas||[]).length||"0") + ' detectadas</div>';
 
   var anomEl = document.getElementById("r-forense-anomalias");
   var anom   = f.anomalias_detectadas || [];
@@ -1526,7 +1553,7 @@ function renderizarForense(f) {
     ? '<div class="anomalia-row"><div class="dot ok"></div><span>Sin anomalías detectadas.</span></div>'
     : anom.map(function(a){
         var ok = a.toLowerCase().indexOf("sin anomal") >= 0;
-        return '<div class="anomalia-row"><div class="dot ' + (ok?"ok":"") + '"></div><span>' + a + '</span></div>';
+        return '<div class="anomalia-row"><div class="dot ' + (ok?"ok":"") + '"></div><span>' + escHtml(a) + '</span></div>';
       }).join("");
 }
 
@@ -1540,7 +1567,7 @@ function renderizarReporteContrato(r) {
   var ahora  = new Date().toLocaleString("es-UY", { dateStyle: "long", timeStyle: "short" });
 
   document.getElementById("r-tipo-contrato").innerHTML =
-    (r.tipo_contrato || "Contrato") + (esMock ? '<span class="mock-badge">SIMULADO</span>' : "");
+    escHtml(r.tipo_contrato || "Contrato") + (esMock ? '<span class="mock-badge">SIMULADO</span>' : "");
   document.getElementById("r-fecha").textContent = ahora;
 
   var partes = r.partes_detectadas || [];
@@ -1552,15 +1579,15 @@ function renderizarReporteContrato(r) {
     "NO_FIRMAR":     ["badge-rec badge-no-firmar", "✕ NO FIRMAR — RIESGO ALTO"],
   };
   var rec = recMap[r.recomendacion_general] || ["badge-rec badge-revisar", r.recomendacion_general];
-  document.getElementById("r-rec-badge").innerHTML = '<span class="' + rec[0] + '">' + rec[1] + '</span>';
+  document.getElementById("r-rec-badge").innerHTML = '<span class="' + rec[0] + '">' + escHtml(rec[1]) + '</span>';
 
   document.getElementById("r-resumen").textContent = r.resumen_ejecutivo || "—";
 
   var partesEl = document.getElementById("r-partes");
   if (partes.length) {
     partesEl.innerHTML = partes.map(function(p){
-      return '<div class="parte-row"><span class="parte-nombre">' + p.nombre + '</span>'
-        + '<span class="parte-rol">' + p.rol + '</span></div>';
+      return '<div class="parte-row"><span class="parte-nombre">' + escHtml(p.nombre) + '</span>'
+        + '<span class="parte-rol">' + escHtml(p.rol) + '</span></div>';
     }).join("");
   } else { partesEl.innerHTML = '<p style="color:#555;font-size:0.9rem">No se detectaron partes.</p>'; }
 
@@ -1571,11 +1598,11 @@ function renderizarReporteContrato(r) {
       var sevClass = c.severidad === "ALTA" ? "sev-alta" : c.severidad === "MEDIA" ? "sev-media" : "sev-baja";
       return '<div class="clausula-card">'
         + '<div class="clausula-header">'
-        + '<div class="clausula-nombre">' + c.clausula + '</div>'
-        + '<span class="sev-badge ' + sevClass + '">' + c.severidad + '</span>'
+        + '<div class="clausula-nombre">' + escHtml(c.clausula) + '</div>'
+        + '<span class="sev-badge ' + sevClass + '">' + escHtml(c.severidad) + '</span>'
         + '</div>'
-        + (c.texto_detectado ? '<div class="clausula-texto">"' + c.texto_detectado + '"</div>' : '')
-        + '<div class="clausula-riesgo">' + c.riesgo + '</div>'
+        + (c.texto_detectado ? '<div class="clausula-texto">&ldquo;' + escHtml(c.texto_detectado) + '&rdquo;</div>' : '')
+        + '<div class="clausula-riesgo">' + escHtml(c.riesgo) + '</div>'
         + '</div>';
     }).join("");
   } else { clausulasEl.innerHTML = '<p style="color:#555;font-size:0.9rem">No se detectaron cláusulas problemáticas.</p>'; }
@@ -1583,19 +1610,19 @@ function renderizarReporteContrato(r) {
   var vaciosEl = document.getElementById("r-vacios");
   var vacios = r.vacios_legales || [];
   vaciosEl.innerHTML = vacios.length
-    ? vacios.map(function(v){ return '<div class="item-row"><div class="item-dot dot-amber"></div><span>' + v + '</span></div>'; }).join("")
+    ? vacios.map(function(v){ return '<div class="item-row"><div class="item-dot dot-amber"></div><span>' + escHtml(v) + '</span></div>'; }).join("")
     : '<div class="item-row"><div class="item-dot dot-green"></div><span>Sin vacíos legales detectados.</span></div>';
 
   var riesgosEl = document.getElementById("r-riesgos");
   var riesgos = r.riesgos_comerciales || [];
   riesgosEl.innerHTML = riesgos.length
-    ? riesgos.map(function(r){ return '<div class="item-row"><div class="item-dot dot-red"></div><span>' + r + '</span></div>'; }).join("")
+    ? riesgos.map(function(r){ return '<div class="item-row"><div class="item-dot dot-red"></div><span>' + escHtml(r) + '</span></div>'; }).join("")
     : '<div class="item-row"><div class="item-dot dot-green"></div><span>Sin riesgos comerciales identificados.</span></div>';
 
   var favorEl = document.getElementById("r-favorables");
   var favor = r.clausulas_favorables || [];
   favorEl.innerHTML = favor.length
-    ? favor.map(function(f){ return '<div class="item-row"><div class="item-dot dot-green"></div><span>' + f + '</span></div>'; }).join("")
+    ? favor.map(function(f){ return '<div class="item-row"><div class="item-dot dot-green"></div><span>' + escHtml(f) + '</span></div>'; }).join("")
     : '<div class="item-row"><div class="item-dot dot-accent"></div><span>No se detectaron cláusulas explícitamente favorables.</span></div>';
 
   if (r.notas_asesor) document.getElementById("r-notas-asesor").value = r.notas_asesor;
@@ -1625,7 +1652,7 @@ function renderizarReporteComparativo(r) {
     "RECHAZAR": ["badge-rec badge-rechazar", "✕ RECHAZAR — CAMBIOS GRAVES"],
   };
   var rec = recMap[r.recomendacion] || ["badge-rec badge-negociar", r.recomendacion || "—"];
-  document.getElementById("r-rec-badge").innerHTML = '<span class="' + rec[0] + '">' + rec[1] + '</span>';
+  document.getElementById("r-rec-badge").innerHTML = '<span class="' + rec[0] + '">' + escHtml(rec[1]) + '</span>';
 
   document.getElementById("rc-resumen").textContent = r.resumen_cambios || "—";
 
@@ -1641,14 +1668,14 @@ function renderizarReporteComparativo(r) {
     modEl.innerHTML = mods.map(function(c) {
       return '<div class="diff-card">'
         + '<div class="diff-header">'
-        + '<div class="diff-id">' + c.clausula + '</div>'
-        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + (c.impacto || "NEUTRAL") + '</span>'
+        + '<div class="diff-id">' + escHtml(c.clausula) + '</div>'
+        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + escHtml(c.impacto || "NEUTRAL") + '</span>'
         + '</div>'
         + '<div class="diff-blocks">'
-        + '<div class="diff-original"><div class="diff-block-label">Original</div>' + (c.texto_original || "—") + '</div>'
-        + '<div class="diff-nuevo"><div class="diff-block-label">Modificado</div>' + (c.texto_nuevo || "—") + '</div>'
+        + '<div class="diff-original"><div class="diff-block-label">Original</div>' + escHtml(c.texto_original || "—") + '</div>'
+        + '<div class="diff-nuevo"><div class="diff-block-label">Modificado</div>' + escHtml(c.texto_nuevo || "—") + '</div>'
         + '</div>'
-        + (c.descripcion ? '<div class="diff-desc">' + c.descripcion + '</div>' : '')
+        + (c.descripcion ? '<div class="diff-desc">' + escHtml(c.descripcion) + '</div>' : '')
         + '</div>';
     }).join("");
   } else { modEl.innerHTML = '<p style="color:#555;font-size:0.9rem">No se detectaron cláusulas modificadas.</p>'; }
@@ -1659,10 +1686,10 @@ function renderizarReporteComparativo(r) {
     agrEl.innerHTML = agr.map(function(c) {
       return '<div class="clausula-card">'
         + '<div class="clausula-header">'
-        + '<div class="clausula-nombre">' + c.clausula + '</div>'
-        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + (c.impacto || "NEUTRAL") + '</span>'
+        + '<div class="clausula-nombre">' + escHtml(c.clausula) + '</div>'
+        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + escHtml(c.impacto || "NEUTRAL") + '</span>'
         + '</div>'
-        + (c.texto ? '<div class="clausula-texto">"' + c.texto + '"</div>' : '')
+        + (c.texto ? '<div class="clausula-texto">&ldquo;' + escHtml(c.texto) + '&rdquo;</div>' : '')
         + '</div>';
     }).join("");
   } else { agrEl.innerHTML = '<div class="item-row"><div class="item-dot dot-green"></div><span>No se agregaron nuevas cláusulas.</span></div>'; }
@@ -1673,10 +1700,10 @@ function renderizarReporteComparativo(r) {
     elimEl.innerHTML = elim.map(function(c) {
       return '<div class="clausula-card">'
         + '<div class="clausula-header">'
-        + '<div class="clausula-nombre">' + c.clausula + '</div>'
-        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + (c.impacto || "NEUTRAL") + '</span>'
+        + '<div class="clausula-nombre">' + escHtml(c.clausula) + '</div>'
+        + '<span class="impacto-badge ' + impactoClass(c.impacto) + '">' + escHtml(c.impacto || "NEUTRAL") + '</span>'
         + '</div>'
-        + (c.texto ? '<div class="clausula-texto">"' + c.texto + '"</div>' : '')
+        + (c.texto ? '<div class="clausula-texto">&ldquo;' + escHtml(c.texto) + '&rdquo;</div>' : '')
         + '</div>';
     }).join("");
   } else { elimEl.innerHTML = '<div class="item-row"><div class="item-dot dot-green"></div><span>No se eliminaron cláusulas.</span></div>'; }
@@ -1754,7 +1781,7 @@ function exportarPDF() {
 
   _abrirVentanaPDF(
     "Informe de Debida Diligencia — KYC / AML", nombre, documento, fecha, badge,
-    "<div class='grid full'><div class='sec'><div class='sec-titulo'>Resumen Ejecutivo</div><p>" + resumen + "</p></div></div>"
+    "<div class='grid full'><div class='sec'><div class='sec-titulo'>Resumen Ejecutivo</div><p>" + escHtml(resumen) + "</p></div></div>"
     + "<div class='grid' style='margin-top:14px'>"
     + "<div class='sec'><div class='sec-titulo'>Entidades Vinculadas</div>" + empresas + "</div>"
     + "<div class='sec'><div class='sec-titulo'>OFAC / Sanciones</div>" + alertas + "</div></div>"
@@ -1762,7 +1789,7 @@ function exportarPDF() {
     + "<div class='sec'><div class='sec-titulo'>Fuentes</div>" + fuentes + "</div>"
     + "<div class='sec'><div class='sec-titulo'>Jurisdicciones</div>" + paises + "</div></div>"
     + forenseHTML
-    + "<div class='concl'><div class='sec-titulo'>Conclusión del Asesor</div><div class='concl-text'>" + conclusion + "</div></div>"
+    + "<div class='concl'><div class='sec-titulo'>Conclusión del Asesor</div><div class='concl-text'>" + escHtml(conclusion) + "</div></div>"
   );
 }
 
@@ -1782,7 +1809,7 @@ function exportarPDFContrato() {
 
   _abrirVentanaPDF(
     "Auditoría Legal Inteligente — Análisis de Contrato", tipo, "Análisis contrato", fecha, recBadge,
-    "<div class='grid full'><div class='sec'><div class='sec-titulo'>Resumen Ejecutivo</div><p>" + resumen + "</p></div></div>"
+    "<div class='grid full'><div class='sec'><div class='sec-titulo'>Resumen Ejecutivo</div><p>" + escHtml(resumen) + "</p></div></div>"
     + "<div class='grid' style='margin-top:14px'>"
     + "<div class='sec'><div class='sec-titulo'>Partes del Contrato</div>" + partes + "</div>"
     + "<div class='sec'><div class='sec-titulo'>Vacíos Legales</div>" + vacios + "</div></div>"
@@ -1790,7 +1817,7 @@ function exportarPDFContrato() {
     + "<div class='grid' style='margin-top:14px'>"
     + "<div class='sec'><div class='sec-titulo'>Riesgos Comerciales</div>" + riesgos + "</div>"
     + "<div class='sec'><div class='sec-titulo'>Cláusulas Favorables</div>" + favorables + "</div></div>"
-    + "<div class='concl'><div class='sec-titulo'>Notas del Asesor</div><div class='concl-text'>" + notas + "</div></div>"
+    + "<div class='concl'><div class='sec-titulo'>Notas del Asesor</div><div class='concl-text'>" + escHtml(notas) + "</div></div>"
   );
 }
 
@@ -1798,7 +1825,7 @@ function _abrirVentanaPDF(subtitulo, nombre, docNum, fecha, badgeHtml, bodyHtml)
   var pw = window.open("", "_blank", "width=900,height=700");
   pw.document.open();
   pw.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'>"
-    + "<title>" + nombre + "</title><style>"
+    + "<title>" + escHtml(nombre) + "</title><style>"
     + "@page{margin:18mm 16mm;size:A4}*{box-sizing:border-box;margin:0;padding:0}"
     + "body{font-family:'Segoe UI',sans-serif;color:#111;background:#fff;font-size:10.5pt}"
     + ".header{border-bottom:2px solid #222;padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start}"
@@ -1849,12 +1876,12 @@ function _abrirVentanaPDF(subtitulo, nombre, docNum, fecha, badgeHtml, bodyHtml)
     + ".footer{margin-top:20px;padding-top:8px;border-top:1px solid #ddd;font-size:7.5pt;color:#aaa;display:flex;justify-content:space-between}"
     + "</style></head><body>"
     + "<div class='header'><div>"
-    + "<div class='subtitulo'>" + subtitulo + "</div>"
-    + "<div class='nombre'>" + nombre + "</div>"
-    + "<div class='meta'>Ref: <strong>" + docNum + "</strong> &nbsp;|&nbsp; Generado: <strong>" + fecha + "</strong></div>"
+    + "<div class='subtitulo'>" + escHtml(subtitulo) + "</div>"
+    + "<div class='nombre'>" + escHtml(nombre) + "</div>"
+    + "<div class='meta'>Ref: <strong>" + escHtml(docNum) + "</strong> &nbsp;|&nbsp; Generado: <strong>" + escHtml(fecha) + "</strong></div>"
     + "</div><div>" + badgeHtml + "</div></div>"
     + bodyHtml
-    + "<div class='footer'><span>AHC Intelligence — Informe Confidencial</span><span>" + fecha + "</span></div>"
+    + "<div class='footer'><span>AHC Intelligence — Informe Confidencial</span><span>" + escHtml(fecha) + "</span></div>"
     + "</body></html>"
   );
   pw.document.close();
@@ -1891,7 +1918,7 @@ function adjuntarDocChat(file) {
   var chipEl = document.getElementById("doc-chip-input");
   if (chipEl) {
     chipEl.style.display = "inline-flex";
-    chipEl.innerHTML = '<span class="doc-chip">📎 ' + file.name + ' <span class="doc-chip-remove" onclick="quitarDocChat()">✕</span></span>';
+    chipEl.innerHTML = '<span class="doc-chip">📎 ' + escHtml(file.name) + ' <span class="doc-chip-remove" onclick="quitarDocChat()">✕</span></span>';
   }
   document.getElementById("file-input-chat").value = "";
 }
@@ -2244,7 +2271,7 @@ function renderizarAnalisisActivo(r) {
   var eventosEl = document.getElementById("r-fund-eventos");
   var eventos = fund.eventos_macro || [];
   eventosEl.innerHTML = eventos.length
-    ? eventos.map(function(e) { return '<div class="evento-row">• ' + e + '</div>'; }).join("")
+    ? eventos.map(function(e) { return '<div class="evento-row">• ' + escHtml(e) + '</div>'; }).join("")
     : '<div class="evento-row" style="color:#a0b4c8">Sin eventos registrados.</div>';
 
   var mrr = r.matriz_riesgo_retorno || {};
@@ -2258,7 +2285,7 @@ function renderizarAnalisisActivo(r) {
   var advEl = document.getElementById("r-advertencias");
   var adv = r.advertencias || [];
   advEl.innerHTML = adv.length
-    ? adv.map(function(a) { return '<div class="adv-row"><span class="adv-dot">⚠</span>' + a + '</div>'; }).join("")
+    ? adv.map(function(a) { return '<div class="adv-row"><span class="adv-dot">⚠</span>' + escHtml(a) + '</div>'; }).join("")
     : '<div class="adv-row">Sin advertencias específicas.</div>';
 
   document.getElementById("placeholder-msg").style.display = "none";

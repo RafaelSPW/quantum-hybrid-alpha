@@ -1,56 +1,49 @@
 # AHC Intelligence — Quantum Compliance SaaS
 
 Plataforma SaaS de inteligencia financiera para asesores de riesgo y compliance.  
-Arquitectura híbrida: frontend en Firebase Hosting + procesamiento IA local (PC 24/7).
+Arquitectura cloud-native: frontend en Firebase Hosting + procesamiento IA en Google Cloud Run.
 
-**Live:** https://agenteahc.web.app
+**Frontend:** https://agenteahc.web.app  
+**Backend:** https://quantum-processor-wbjf4jkeqq-uc.a.run.app (Cloud Run, privado)
 
 ---
 
 ## Arquitectura
 
 ```
-NUBE (Firebase Hosting + Firestore + Storage)
+FIREBASE (agenteahc)
 ──────────────────────────────────────────────────────────────
-index.html              Panel principal + módulos
-compliance-hub.html     Hub Módulo 01
-markets.html            Hub Módulo 02
-compliance.html         Due Diligence KYC / AML
-forensic.html           Análisis Forense de Documentos
-contracts.html          Auditoría de Contratos
-legal-chat.html         Guía Regulatoria (chat)
-market-strategy.html    Diseñador de Estrategias AI (chat)
-market-asset.html       Analizador Clínico de Activos
-market-audit.html       Auditor de Carteras
-app.js                  Lógica frontend + autenticación + PayPal SDK
+Hosting        app.js + 11 HTML — SPA del asesor
+Firestore      Base de datos en tiempo real (tareas, usuarios, suscripciones)
+Storage        Archivos subidos por el usuario (PDF, JPG, PNG)
+Auth           Autenticación email/password
 
-LOCAL (PC 24/7)
+GOOGLE CLOUD RUN (quantumaits · us-central1)
 ──────────────────────────────────────────────────────────────
-main_processor.py       Polling loop (cada 10 s) + thread PayPal
-paypal_service.py       Monitor de suscripciones PayPal Live
-agents/
-├── agent_compliance.py     Gemini 2.5 Flash + Google Search (KYC/Forense)
-├── agent_contracts.py      Gemini 2.5 Flash (auditoría de contratos)
-├── agent_legal_chat.py     Gemini 2.5 Flash (guía regulatoria)
-└── agent_markets.py        Gemini 2.5 Flash + Google Search (mercados)
-database/
-└── local_cache.py          SQLite — caché de reportes KYC
+quantum-processor   min-instances=1 · siempre activo · 1 GB RAM
+  main_processor.py     Polling loop (10 s) + thread PayPal (30 s)
+  paypal_service.py     Monitor de suscripciones PayPal Live
+  agents/
+  ├── agent_compliance.py   Gemini 2.5 Flash + Google Search (KYC / Forense)
+  ├── agent_contracts.py    Gemini 2.5 Flash (auditoría de contratos)
+  ├── agent_legal_chat.py   Gemini 2.5 Flash (guía regulatoria)
+  └── agent_markets.py      Gemini 2.5 Flash + Google Search (mercados)
 
 FIRESTORE (colecciones)
 ──────────────────────────────────────────────────────────────
-tareas_pendientes       Tareas creadas por el frontend, procesadas por main_processor
-usuarios                Créditos, plan, suscripción PayPal del usuario
+tareas_pendientes        Tareas creadas por frontend → procesadas por Cloud Run
+usuarios                 Créditos, plan, suscripción PayPal del usuario
 suscripciones_pendientes Activación PayPal pendiente de validación
-suscripciones           Historial de suscripciones activas
-leads_institucionales   Solicitudes del tier Enterprise Dedicado
+suscripciones            Historial de suscripciones activas
+leads_institucionales    Solicitudes tier Enterprise Dedicado
 ```
 
 ---
 
 ## Módulos y Créditos
 
-| Módulo | Herramienta | Créditos | Descripción |
-|--------|-------------|----------|-------------|
+| Módulo | Agente | Créditos | Descripción |
+|--------|--------|----------|-------------|
 | Compliance KYC/AML | `agent_compliance.py` | 50 | Rastreo transfronterizo OFAC, PEPs, redes corporativas |
 | Análisis Forense | `agent_compliance.py` | 25 | Autenticación multimodal 4 capas (metadatos, ELA, IA, tipografía) |
 | Auditoría de Contratos | `agent_contracts.py` | 75 | Cláusulas leoninas, vacíos legales, riesgo comercial |
@@ -61,107 +54,25 @@ leads_institucionales   Solicitudes del tier Enterprise Dedicado
 
 ### Planes
 
-| Plan | Créditos/mes | Precio |
-|------|-------------|--------|
-| Trial | 150 (7 días) | Gratis |
-| Starter | 1.500 | USD 10/mes |
-| Professional | 5.000 | USD 50/mes |
-| Enterprise | 25.000 | USD 250/mes |
+| Plan | Créditos/mes | PayPal Plan ID |
+|------|-------------|----------------|
+| Trial | 150 (7 días) | — Gratis — |
+| Starter | 1.500 | `P-8GL53584124263225NIRKO6Q` |
+| Professional | 5.000 | `P-0GF18564ED3901707NIRKYBQ` |
+| Enterprise | 25.000 | `P-9L677248CE864754UNIRKY2I` |
 | Institutional Custom | Ilimitado | Trato privado · SWIFT |
-
----
-
-## Setup Local
-
-### 1. Instalar dependencias
-
-```bash
-cd local-infrastructure
-pip install -r requirements.txt
-```
-
-### 2. Configurar credenciales
-
-Crear `local-infrastructure/.env`:
-
-```env
-# Gemini (Google AI Studio → aistudio.google.com/app/apikey)
-GEMINI_API_KEY=AIzaSy...
-
-# Firebase Admin SDK
-FIREBASE_ADMIN_CREDENTIALS=./serviceAccountKey.json
-FIREBASE_PROJECT_ID=tu-proyecto
-FIREBASE_STORAGE_BUCKET=tu-proyecto.firebasestorage.app
-
-# PayPal Live (developer.paypal.com → Apps & Credentials)
-PAYPAL_CLIENT_ID=...
-PAYPAL_CLIENT_SECRET=...
-```
-
-Descargar `serviceAccountKey.json` desde:  
-Firebase Console → Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada
-
-### 3. Iniciar el procesador
-
-```bash
-cd local-infrastructure
-python main_processor.py
-```
-
-El procesador corre 24/7:
-- Cada 10 s consulta `tareas_pendientes` con `status: PENDIENTE`
-- Despacha cada tarea al agente correspondiente
-- Hilo paralelo valida suscripciones PayPal cada 30 s
-
----
-
-## Setup Firebase (Nube)
-
-### 1. Instalar Firebase CLI
-
-```bash
-npm install -g firebase-tools
-firebase login
-```
-
-### 2. Configurar PayPal Plan IDs
-
-En `cloud-infrastructure/public/app.js`, reemplazar los placeholders con los IDs reales de planes de suscripción PayPal  
-(PayPal Dashboard → Billing → Subscriptions → Plans → Crear plan para cada nivel):
-
-```js
-const PAYPAL_PLAN_IDS = {
-  starter:      "P-XXXXXXXXXXXXXXXX",
-  professional: "P-XXXXXXXXXXXXXXXX",
-  enterprise:   "P-XXXXXXXXXXXXXXXX",
-};
-```
-
-### 3. Desplegar
-
-```bash
-cd cloud-infrastructure
-firebase deploy
-```
-
-O solo hosting / solo reglas:
-
-```bash
-firebase deploy --only hosting
-firebase deploy --only hosting,firestore:rules
-```
 
 ---
 
 ## Flujo de una tarea
 
 ```
-Browser                   Firestore                  Local (main_processor.py)
-───────                   ─────────                  ─────────────────────────
+Browser                   Firestore                  Cloud Run (quantum-processor)
+───────                   ─────────                  ─────────────────────────────
 1. Asesor envía formulario
 2. app.js escribe tarea ──► tareas_pendientes
                               status: PENDIENTE
-                                                  3. Polling detecta tarea
+                                                  3. Polling detecta tarea (10 s)
                                                   4. doc → status: EN_PROCESO
                                                   5. Llama agente IA (Gemini)
                                                   6. Si archivo: descarga de
@@ -176,17 +87,96 @@ Browser                   Firestore                  Local (main_processor.py)
 ### Caché KYC
 
 Si el documento ya fue investigado, `agent_compliance.py` devuelve el resultado  
-desde SQLite local sin llamar a Gemini (costo $0). Los resultados marcados como  
-`SIMULADO` se descartan automáticamente y se re-analizan.
+desde SQLite local sin llamar a Gemini (costo $0). Los resultados `SIMULADO` se  
+descartan y se re-analizan con datos reales.
+
+---
+
+## Deploy
+
+### Frontend (Firebase Hosting + Firestore rules)
+
+```bash
+cd cloud-infrastructure
+firebase deploy --only hosting,firestore --project agenteahc
+```
+
+### Backend (Google Cloud Run)
+
+**Primera vez — habilitar APIs y crear repositorio:**
+```bash
+gcloud config set project quantumaits
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
+gcloud artifacts repositories create quantum-compliance --repository-format=docker --location=us-central1
+```
+
+**Build y deploy:**
+```bash
+cd local-infrastructure
+gcloud builds submit --tag us-central1-docker.pkg.dev/quantumaits/quantum-compliance/processor:latest
+
+gcloud run deploy quantum-processor \
+  --image=us-central1-docker.pkg.dev/quantumaits/quantum-compliance/processor:latest \
+  --region=us-central1 --platform=managed \
+  --no-allow-unauthenticated \
+  --min-instances=1 --max-instances=1 \
+  --memory=1Gi --cpu=1 --timeout=540 \
+  --update-env-vars="GEMINI_API_KEY=...,PAYPAL_CLIENT_ID=...,PAYPAL_CLIENT_SECRET=...,FIREBASE_STORAGE_BUCKET=agenteahc.firebasestorage.app,FIREBASE_CREDENTIALS_B64=<base64 de serviceAccountKey.json>,PYTHONUNBUFFERED=1" \
+  --project quantumaits
+```
+
+**Ver logs en tiempo real:**
+```bash
+gcloud run services logs tail quantum-processor --region=us-central1 --project quantumaits
+```
+
+### Variables de entorno requeridas en Cloud Run
+
+| Variable | Descripción |
+|----------|-------------|
+| `GEMINI_API_KEY` | Google AI Studio → aistudio.google.com/app/apikey |
+| `PAYPAL_CLIENT_ID` | PayPal Developer → Apps & Credentials |
+| `PAYPAL_CLIENT_SECRET` | PayPal Developer → Apps & Credentials |
+| `FIREBASE_STORAGE_BUCKET` | `agenteahc.firebasestorage.app` |
+| `FIREBASE_CREDENTIALS_B64` | `base64 -w0 serviceAccountKey.json` |
+| `PYTHONUNBUFFERED` | `1` (logs visibles en tiempo real) |
+
+---
+
+## Setup local (desarrollo)
+
+```bash
+cd local-infrastructure
+pip install -r requirements.txt
+```
+
+Crear `local-infrastructure/.env`:
+```env
+GEMINI_API_KEY=...
+FIREBASE_ADMIN_CREDENTIALS=./serviceAccountKey.json
+FIREBASE_STORAGE_BUCKET=agenteahc.firebasestorage.app
+PAYPAL_CLIENT_ID=...
+PAYPAL_CLIENT_SECRET=...
+```
+
+Descargar `serviceAccountKey.json` desde:  
+Firebase Console → Configuración → Cuentas de servicio → Generar nueva clave privada
+
+```bash
+python main_processor.py
+```
 
 ---
 
 ## Seguridad
 
-- `.env` y `serviceAccountKey.json` están en `.gitignore` — **nunca subir al repo**
-- Reglas Firestore: cada usuario solo accede a sus propios documentos
-- `leads_institucionales`: solo `create` para usuarios autenticados, sin lectura pública
-- Créditos: decrementos atómicos con `FieldValue.increment()` vía Admin SDK
+- `.env` y `serviceAccountKey.json` en `.gitignore` — nunca subir al repo
+- `FIREBASE_CREDENTIALS_B64` se pasa en base64 para evitar problemas de escaping con el private key
+- Reglas Firestore: cada usuario solo accede a sus propios documentos (validación por UID)
+- `tareas_pendientes`: create requiere `uid == auth.uid`; read/update/delete requieren ser el propietario
+- Headers HTTP: `X-Frame-Options: DENY`, `HSTS`, `X-Content-Type-Options`, `Referrer-Policy`
+- Créditos: decrementos atómicos con `FieldValue.increment()` vía Admin SDK (no manipulables desde frontend)
+- Validación de tipo de archivo en frontend: solo PDF, JPG, PNG
 
 ---
 
@@ -195,10 +185,10 @@ desde SQLite local sin llamar a Gemini (costo $0). Los resultados marcados como
 ```
 quantum-compliance-saas/
 ├── cloud-infrastructure/
-│   ├── firebase.json
-│   ├── firestore.rules
+│   ├── firebase.json           Hosting config + security headers
+│   ├── firestore.rules         Reglas de acceso por UID
 │   └── public/
-│       ├── app.js
+│       ├── app.js              Lógica frontend + auth + PayPal SDK
 │       ├── index.html
 │       ├── compliance-hub.html
 │       ├── compliance.html
@@ -211,8 +201,11 @@ quantum-compliance-saas/
 │       ├── market-audit.html
 │       └── logoqahc.png
 └── local-infrastructure/
-    ├── main_processor.py
-    ├── paypal_service.py
+    ├── Dockerfile              Build para Cloud Run
+    ├── entrypoint.py           Health check HTTP + arranca main_processor
+    ├── cloudbuild.yaml         CI/CD con Cloud Build
+    ├── main_processor.py       Polling loop + despacho de agentes
+    ├── paypal_service.py       Monitor de suscripciones PayPal Live
     ├── requirements.txt
     ├── .env                    ← NO subir al repo
     ├── serviceAccountKey.json  ← NO subir al repo
@@ -222,5 +215,5 @@ quantum-compliance-saas/
     │   ├── agent_legal_chat.py
     │   └── agent_markets.py
     └── database/
-        └── local_cache.py
+        └── local_cache.py      SQLite — caché de reportes KYC
 ```
