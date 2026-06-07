@@ -410,7 +410,18 @@ def main():
                     doc_ref.update({"status": "ERROR", "error": str(e)})
 
         except Exception as e:
-            print(f"[ERROR] Poll Firestore: {e}. Reintentando en {POLL_INTERVAL_SECONDS}s...")
+            print(f"[ERROR] Poll Firestore: {e}. Reinicializando cliente en {POLL_INTERVAL_SECONDS}s...")
+            time.sleep(POLL_INTERVAL_SECONDS)
+            try:
+                firebase_admin.delete_app(firebase_admin.get_app())
+            except Exception:
+                pass
+            try:
+                db = init_firebase()
+                print("[SISTEMA] Cliente Firestore reinicializado.")
+            except Exception as e2:
+                print(f"[ERROR] No se pudo reinicializar Firestore: {e2}")
+            continue
 
         time.sleep(POLL_INTERVAL_SECONDS)
 
