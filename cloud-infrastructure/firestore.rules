@@ -2,21 +2,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helper ─────────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────────
     function esAuth() {
       return request.auth != null;
     }
+    function esAdmin() {
+      return esAuth() && request.auth.token.email == "rafaelnunezinzaurralde@gmail.com";
+    }
 
     // ── Tareas pendientes ──────────────────────────────────────────────────────
-    // El frontend crea la tarea y luego la actualiza para adjuntar el path del
-    // archivo subido a Storage. El backend solo escribe via Admin SDK (sin reglas).
     match /tareas_pendientes/{tareaId} {
       allow create: if esAuth()
-                    && request.auth.uid == request.resource.data.uid;
-      // update: el propietario puede añadir archivo_storage_path, archivo_nombre, etc.
+                    && request.auth.uid == request.resource.data.uid
+                    && (request.resource.data.tipo != "generar_articulo" || esAdmin());
       allow read, update: if esAuth()
                           && request.auth.uid == resource.data.uid;
       allow delete: if false;
+    }
+
+    // ── Artículos (blog / recursos) ────────────────────────────────────────────
+    match /articulos/{artId} {
+      allow read:   if resource.data.publicado == true || esAdmin();
+      allow create, update, delete: if esAdmin();
     }
 
     // ── Resultados (colección legacy, por si acaso) ────────────────────────────
@@ -51,6 +58,17 @@ service cloud.firestore {
     match /leads_institucionales/{leadId} {
       allow create: if esAuth();
       allow read, update, delete: if false;
+    }
+
+    // ── Feedback de usuarios (moderado antes de publicar) ─────────────────────
+    // El usuario crea con aprobado=false. Solo el backend (Admin SDK) puede aprobar.
+    // Lectura pública para mostrar testimonios en landing.
+    match /feedback/{docId} {
+      allow create: if esAuth()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.aprobado == false;
+      allow read:   if true;
+      allow update, delete: if false;
     }
   }
 }

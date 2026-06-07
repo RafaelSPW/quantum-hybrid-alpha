@@ -2,8 +2,12 @@
   "hosting": {
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "cleanUrls": true,
     "rewrites": [
-      { "source": "**", "destination": "/index.html" }
+      { "source": "/adminahc", "destination": "/adminahc.html" },
+      { "source": "/articulos", "destination": "/articulos.html" },
+      { "source": "/articulo",  "destination": "/articulo.html"  },
+      { "source": "**",         "destination": "/index.html"     }
     ],
     "headers": [
       {
@@ -20,7 +24,8 @@
     ]
   },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules":   "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"

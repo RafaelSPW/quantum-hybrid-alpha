@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "articulos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "publicado",  "order": "ASCENDING"  },
+        { "fieldPath": "creado_en",  "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

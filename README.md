@@ -16,7 +16,7 @@ FIREBASE (agenteahc)
 Hosting        app.js + 11 HTML — SPA del asesor
 Firestore      Base de datos en tiempo real (tareas, usuarios, suscripciones)
 Storage        Archivos subidos por el usuario (PDF, JPG, PNG)
-Auth           Autenticación email/password
+Auth           Google Sign-In (primario) + Email/Password (secundario) con verificación de email
 
 GOOGLE CLOUD RUN (quantumaits · us-central1)
 ──────────────────────────────────────────────────────────────
@@ -41,6 +41,39 @@ suscripciones_pendientes Activación PayPal pendiente de validación
 suscripciones            Historial de suscripciones activas
 leads_institucionales    Solicitudes tier Enterprise Dedicado
 ```
+
+---
+
+## Registro de cambios
+
+### Junio 2026 — Auth dual + copy de registro
+
+**Archivos modificados:** `public/app.js`, `public/index.html`
+
+#### (a) Copy / gancho de registro
+- Botón del header en `index.html` cambiado de "Iniciar sesión" → **"Registrate gratis"**
+- Bloque CTA visible en el hero de `index.html` (solo usuarios no logueados): botón grande + texto "Empezá con créditos gratis incluidos · Sin tarjeta · Sin compromisos."
+- Toast verde post-aceptación de T&C: *"¡Listo! Ya tenés tus créditos gratis para empezar. Subí tu primer documento."*
+
+#### (b) Auth dual: Google + Email/Contraseña
+- `loginGoogle()` ahora abre `abrirModalAuth()` → todos los botones existentes en los 11 HTML heredan el modal sin cambios en el HTML de módulos
+- Modal unificado con:
+  - **"Continuar con Google"** (primario)
+  - Separador "o"
+  - Formulario email/contraseña con toggle **Registrarse / Iniciar sesión**
+  - Link **"¿Olvidaste tu contraseña?"** → `sendPasswordResetEmail()`
+  - Mensajes de error en español para todos los códigos de Firebase Auth
+- `_triggerGoogleSignIn()` maneja el popup de Google internamente
+
+#### (c) Verificación de email (solo usuarios email/contraseña)
+- Post-registro: `sendEmailVerification()` se llama automáticamente antes de cerrar el modal
+- `onAuthStateChanged` detecta `providerId === "password" && !emailVerified` → muestra overlay bloqueante
+- Overlay `mostrarVerificacionPendiente(user)`:
+  - **"Ya verifiqué"** → `auth.currentUser.reload()` + chequea `emailVerified`
+  - **"Reenviar correo"** → `sendEmailVerification()` con cooldown de 30 s
+  - **"¿No es tu email? Cerrar sesión"** → cierra sesión y limpia overlay
+- `verificarCreditos()` tiene la misma guardia como red de seguridad antes de cualquier módulo
+- **Usuarios Google no se ven afectados** — `emailVerified` siempre es `true` para Google Sign-In
 
 ---
 

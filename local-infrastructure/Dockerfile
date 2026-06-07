@@ -16,4 +16,5 @@ COPY . .
 # Cloud Run requires a process listening on PORT (default 8080)
 EXPOSE 8080
 
+ENV PYTHONUNBUFFERED=1
 CMD ["python", "entrypoint.py"]

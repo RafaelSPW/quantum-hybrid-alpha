@@ -56,6 +56,9 @@
     .hero-title { font-size: 2.4rem; font-weight: 700; color: var(--text-head); line-height: 1.2; max-width: 640px; }
     .hero-title span { color: var(--accent); }
     .hero-desc { font-size: 1rem; color: var(--text-dim); margin-top: 16px; max-width: 580px; line-height: 1.75; font-weight: 400; }
+    .hero-cta-wrap { margin-top: 28px; }
+    .hero-cta-btn { font-size: 1rem; padding: 14px 36px; }
+    .hero-cta-hook { margin-top: 12px; font-size: 0.97rem; color: var(--text-dim); line-height: 1.6; font-weight: 500; }
     .hero-logo { flex-shrink: 0; opacity: 0.88; }
     .hero-logo img { width: 340px; height: 340px; object-fit: contain; display: block; }
 
@@ -176,6 +179,46 @@
     .inst-card-btn:hover { background: #1a4a78; border-color: #7aabe0; }
     .inst-card-note { font-size: 0.68rem; color: #2a5070; margin-top: 8px; max-width: 160px; line-height: 1.5; }
 
+    /* TESTIMONIOS */
+    .testimonios-wrap { padding: 52px 48px; background: var(--navy-mid); border-top: 1px solid var(--border); }
+    .testimonios-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 28px; }
+    .t-card { background: var(--navy); border: 1px solid var(--border); border-radius: 4px; padding: 24px 22px; display: flex; flex-direction: column; gap: 12px; }
+    .t-stars { display: flex; gap: 4px; }
+    .t-star { font-size: 1.1rem; color: #d0d8e4; }
+    .t-star.on { color: #f5a623; }
+    .t-texto { font-size: 0.9rem; color: var(--text-dim); line-height: 1.75; font-style: italic; flex: 1; }
+    .t-nombre { font-size: 0.78rem; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; }
+
+    /* ARTÍCULOS */
+    .articulos-wrap { padding: 52px 48px; border-top: 1px solid var(--border); }
+    .articulos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 28px; }
+    .art-card { background: var(--navy-mid); border: 1px solid var(--border); border-top: 3px solid var(--accent); padding: 28px 24px; display: flex; flex-direction: column; gap: 12px; transition: background .2s; text-decoration: none; }
+    .art-card:hover { background: var(--navy-lite); }
+    .art-tag { font-size: 0.68rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+    .art-titulo { font-size: 1rem; font-weight: 700; color: var(--text-head); line-height: 1.4; }
+    .art-desc { font-size: 0.85rem; color: var(--text-dim); line-height: 1.7; flex: 1; }
+    .art-link { font-size: 0.75rem; font-weight: 700; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+    .art-link::after { content: ' →'; }
+
+    /* FOOTER */
+    .site-footer { background: #040d18; padding: 44px 48px 28px; border-top: 2px solid #1a3a60; }
+    .footer-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 40px; margin-bottom: 36px; }
+    .footer-brand img { height: 38px; object-fit: contain; display: block; margin-bottom: 14px; filter: brightness(0) invert(1); opacity: .85; }
+    .footer-brand p { font-size: 0.82rem; color: #4a7aaa; line-height: 1.7; max-width: 260px; }
+    .footer-nav { display: flex; gap: 48px; }
+    .footer-col h4 { font-size: 0.68rem; font-weight: 700; color: #7aabe0; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 14px; }
+    .footer-col a { display: block; font-size: 0.85rem; color: #4a7aaa; text-decoration: none; margin-bottom: 8px; transition: color .15s; }
+    .footer-col a:hover { color: #90b4cc; }
+    .footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid #1a3a60; font-size: 0.72rem; color: #2a5070; }
+    .footer-social { display: flex; gap: 14px; }
+    .footer-social a { font-size: 0.78rem; color: #3a6080; text-decoration: none; transition: color .15s; }
+    .footer-social a:hover { color: #7aabe0; }
+
+    /* WHATSAPP FLOTANTE */
+    .wa-float { position: fixed; bottom: 28px; right: 28px; width: 54px; height: 54px; background: #25d366; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(37,211,102,.45); z-index: 8000; transition: transform .2s, box-shadow .2s; text-decoration: none; }
+    .wa-float:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(37,211,102,.6); }
+    .wa-float svg { width: 28px; height: 28px; fill: #fff; }
+
     @media (max-width: 768px) {
       /* ── HEADER ── */
       header { padding: 0 16px; height: 52px; }
@@ -250,6 +293,18 @@
 
       /* ── STATUS BAR ── */
       .status-bar { display: none; }
+
+      /* ── TESTIMONIOS / ARTÍCULOS / FOOTER ── */
+      .testimonios-wrap { padding: 32px 16px; }
+      .testimonios-grid { grid-template-columns: 1fr; gap: 12px; }
+      .articulos-wrap   { padding: 32px 16px; }
+      .articulos-grid   { grid-template-columns: 1fr; gap: 12px; }
+      .site-footer      { padding: 32px 16px 20px; }
+      .footer-top       { flex-direction: column; gap: 24px; }
+      .footer-nav       { flex-direction: column; gap: 24px; }
+      .footer-bottom    { flex-direction: column; gap: 12px; text-align: center; }
+      .wa-float         { bottom: 16px; right: 16px; width: 48px; height: 48px; }
+      .wa-float svg     { width: 24px; height: 24px; }
     }
   </style>
 </head>
@@ -262,7 +317,7 @@
     <div class="auth-bar">
       <span id="user-info"></span>
       <span id="creditos-badge" class="creditos-badge"></span>
-      <button id="btn-login" class="btn btn-primary" onclick="loginGoogle()">Iniciar sesión</button>
+      <button id="btn-login" class="btn btn-primary" onclick="loginGoogle()">Registrate gratis</button>
       <button id="btn-logout" class="btn btn-secondary" style="display:none" onclick="logout()">Cerrar sesión</button>
     </div>
   </header>
@@ -274,6 +329,10 @@
         <div class="hero-label">Panel de Control</div>
         <div class="hero-title">Inteligencia financiera<br><span>para decisiones críticas</span></div>
         <div class="hero-desc">Plataforma integrada de due diligence, análisis KYC/AML y consultoría de mercados con procesamiento de IA en tiempo real.</div>
+        <div id="hero-cta-wrap" class="hero-cta-wrap">
+          <button class="btn btn-primary hero-cta-btn" onclick="loginGoogle()">Registrate gratis</button>
+          <div class="hero-cta-hook">Empezá con créditos gratis incluidos &middot; Sin tarjeta &middot; Sin compromisos.</div>
+        </div>
       </div>
       <div class="hero-logo">
         <img src="logoqahc.png?v=2" alt="AHC Intelligence" />
@@ -348,14 +407,85 @@
    </div>
   </div>
 
-  <div class="status-bar">
-   <div class="inner" style="display:flex;gap:32px;align-items:center">
-    <div class="status-item"><div class="status-dot"></div> Procesador local conectado</div>
-    <div class="status-item"><div class="status-dot"></div> Firestore activo</div>
-    <div class="status-item"><div class="status-dot"></div> Motor de IA activo</div>
-    <div style="margin-left:auto; color: #3a5060; font-size:0.68rem; letter-spacing:1px;">AHC Intelligence v1.0</div>
-   </div>
-  </div>
+  <!-- TESTIMONIOS -->
+  <section id="testimonios-section" class="testimonios-wrap">
+    <div class="inner">
+      <div class="modules-label">Lo que dicen nuestros usuarios</div>
+      <div id="testimonios-grid" class="testimonios-grid"></div>
+    </div>
+  </section>
+
+  <!-- ARTÍCULOS -->
+  <section class="articulos-wrap">
+    <div class="inner">
+      <div class="modules-label">Recursos y Análisis</div>
+      <div class="articulos-grid">
+
+        <a class="art-card" href="articulos.html">
+          <div class="art-tag">Due Diligence</div>
+          <div class="art-titulo">Due Diligence en la Era de la IA: Cómo los Asesores de Riesgo están Transformando sus Procesos</div>
+          <div class="art-desc">La inteligencia artificial permite rastrear redes corporativas, alertas OFAC y PEPs en segundos. Qué cambió y qué no en el trabajo del asesor de compliance.</div>
+          <div class="art-link">Leer artículo</div>
+        </a>
+
+        <a class="art-card" href="articulos.html">
+          <div class="art-tag">Contratos</div>
+          <div class="art-titulo">Guía Práctica: Identificación de Riesgos en Contratos Comerciales Latinoamericanos</div>
+          <div class="art-desc">Las cláusulas leoninas más frecuentes en contratos de distribución, prestación de servicios y joint venture en Argentina, Uruguay y México.</div>
+          <div class="art-link">Leer artículo</div>
+        </a>
+
+        <a class="art-card" href="articulos.html">
+          <div class="art-tag">Regulación</div>
+          <div class="art-titulo">El Rol del Asesor Financiero ante el Nuevo Marco Regulatorio AML/CFT en América Latina</div>
+          <div class="art-desc">GAFI, GAFILAT y las nuevas obligaciones de debida diligencia para asesores independientes. Lo que necesitás saber antes de la próxima evaluación mutua.</div>
+          <div class="art-link">Leer artículo</div>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div class="inner">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <img src="logoqahc.png?v=2" alt="AHC Intelligence" />
+          <p>Inteligencia financiera para asesores de riesgo, compliance y mercados.</p>
+        </div>
+        <div class="footer-nav">
+          <div class="footer-col">
+            <h4>Plataforma</h4>
+            <a href="compliance-hub.html">Compliance &amp; Due Diligence</a>
+            <a href="markets.html">Consultor de Mercados</a>
+          </div>
+          <div class="footer-col">
+            <h4>Contacto</h4>
+            <a href="https://wa.me/59894032474?text=Hola,%20me%20interesa%20AHC%20Intelligence" target="_blank" rel="noopener">WhatsApp</a>
+            <!-- Reemplazá # con tu URL cuando tengas las redes -->
+            <a href="#" target="_blank" rel="noopener">LinkedIn</a>
+            <a href="#" target="_blank" rel="noopener">Instagram</a>
+            <a href="#" target="_blank" rel="noopener">Facebook</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 AHC Intelligence. Todos los derechos reservados.</span>
+        <div class="footer-social">
+          <a href="https://wa.me/59894032474" target="_blank" rel="noopener">WhatsApp</a>
+          <a href="#" target="_blank" rel="noopener">LinkedIn</a>
+          <a href="#" target="_blank" rel="noopener">Instagram</a>
+          <a href="#" target="_blank" rel="noopener">Facebook</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- WHATSAPP FLOTANTE -->
+  <a href="https://wa.me/59894032474?text=Hola,%20me%20interesa%20AHC%20Intelligence" target="_blank" rel="noopener" class="wa-float" title="Contactar por WhatsApp">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>

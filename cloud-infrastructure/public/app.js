@@ -53,6 +53,8 @@ let _trialExpiraDate      = null;
 let _unsubCreditos        = null;
 let _unsubCompliance      = null;
 let _tipoEntidad          = "persona";
+let _feedbackDado         = false;
+let _fbEstrellas          = 0;
 
 // ── SPINNER GLOBAL (para páginas sin loading-panel propio) ────────────────────
 (function() {
@@ -378,6 +380,7 @@ function _aceptarTerminos(uid, email, nombre) {
   }, { merge: true }).then(function() {
     var el = document.getElementById("tc-overlay");
     if (el) el.remove();
+    _mostrarToastBienvenida();
   }).catch(function(e) {
     console.warn("[TC]", e);
     if (btn) { btn.disabled = false; btn.textContent = "Acepto los Términos"; }
@@ -433,10 +436,21 @@ function actualizarCreditosBadge(creditos, plan, expira) {
 }
 
 function verificarCreditos(tipo) {
+  var _u = auth.currentUser;
+  if (_u && _u.providerData.length > 0 && _u.providerData[0].providerId === "password" && !_u.emailVerified) {
+    mostrarVerificacionPendiente(_u);
+    return false;
+  }
   if (_userPlan === "institucional") return true;
   // Primero: trial expirado
   if (_trialExpirado()) {
-    mostrarPaywall("expired");
+    var _uu = auth.currentUser;
+    var _fbKey = _uu ? "ahc_fb_" + _uu.uid : null;
+    if (_fbKey && !localStorage.getItem(_fbKey) && !_feedbackDado) {
+      _mostrarFeedbackModal();
+    } else {
+      mostrarPaywall("expired");
+    }
     return false;
   }
   // Segundo: créditos insuficientes
@@ -2432,11 +2446,471 @@ function renderizarAuditoriaCartera(r) {
   container.scrollIntoView({ behavior: "smooth" });
 }
 
+// ── FEEDBACK POST-TRIAL ───────────────────────────────────────────────────────
+
+function _mostrarFeedbackModal() {
+  if (document.getElementById("fb-overlay")) { mostrarPaywall("expired"); return; }
+  _fbEstrellas = 0;
+  if (!document.getElementById("fb-styles")) {
+    var s = document.createElement("style");
+    s.id  = "fb-styles";
+    s.textContent =
+      "#fb-overlay{position:fixed;inset:0;background:rgba(4,13,24,.78);z-index:9700;display:flex;align-items:center;justify-content:center;padding:20px}"
+      + "#fb-modal{background:#fff;border-radius:8px;padding:40px;max-width:480px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.28);font-family:'Segoe UI',system-ui,sans-serif}"
+      + ".fb-label{font-size:0.68rem;font-weight:700;color:#1a56a0;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px}"
+      + ".fb-titulo{font-size:1.2rem;font-weight:700;color:#040d18;margin-bottom:6px}"
+      + ".fb-subtitulo{font-size:0.85rem;color:#3a5068;margin-bottom:24px;line-height:1.6}"
+      + ".fb-stars{display:flex;gap:8px;margin-bottom:20px;cursor:pointer}"
+      + ".fb-star{font-size:2rem;color:#d0d8e4;transition:color .1s;user-select:none}"
+      + ".fb-star.on{color:#f5a623}"
+      + ".fb-field{margin-bottom:16px}"
+      + ".fb-field label{display:block;font-size:0.72rem;font-weight:700;color:#3a5068;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}"
+      + ".fb-field textarea{width:100%;padding:10px 12px;border:1.5px solid #c8d4e0;border-radius:4px;font-size:0.9rem;font-family:inherit;color:#040d18;resize:vertical;min-height:90px;box-sizing:border-box;transition:border-color .15s}"
+      + ".fb-field textarea:focus{outline:none;border-color:#1a56a0;box-shadow:0 0 0 3px rgba(26,86,160,.08)}"
+      + ".fb-field input{width:100%;padding:10px 12px;border:1.5px solid #c8d4e0;border-radius:4px;font-size:0.9rem;font-family:inherit;color:#040d18;box-sizing:border-box;transition:border-color .15s}"
+      + ".fb-field input:focus{outline:none;border-color:#1a56a0;box-shadow:0 0 0 3px rgba(26,86,160,.08)}"
+      + ".fb-error{font-size:0.8rem;color:#b02020;margin-bottom:12px;display:none}"
+      + ".fb-btns{display:flex;gap:12px;margin-top:8px}"
+      + ".fb-btn-p{flex:1;padding:12px;background:#1a56a0;color:#fff;border:none;border-radius:4px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s}"
+      + ".fb-btn-p:hover{background:#1464bf}"
+      + ".fb-btn-p:disabled{opacity:.55;cursor:not-allowed}"
+      + ".fb-btn-s{padding:12px 18px;background:transparent;color:#7a90a4;border:none;border-radius:4px;font-size:0.88rem;cursor:pointer;font-family:inherit}"
+      + ".fb-btn-s:hover{color:#3a5068}"
+      + "@media(max-width:480px){#fb-modal{padding:28px 20px}}";
+    document.head.appendChild(s);
+  }
+  var overlay = document.createElement("div");
+  overlay.id  = "fb-overlay";
+  overlay.innerHTML =
+    '<div id="fb-modal">'
+    + '<div class="fb-label">AHC Intelligence</div>'
+    + '<div class="fb-titulo">¿Cómo fue tu experiencia?</div>'
+    + '<div class="fb-subtitulo">Tu período de prueba terminó. Antes de ver los planes, nos gustaría saber qué te pareció.</div>'
+    + '<div class="fb-stars" id="fb-stars-wrap">'
+    +   '<span class="fb-star" data-v="1">★</span>'
+    +   '<span class="fb-star" data-v="2">★</span>'
+    +   '<span class="fb-star" data-v="3">★</span>'
+    +   '<span class="fb-star" data-v="4">★</span>'
+    +   '<span class="fb-star" data-v="5">★</span>'
+    + '</div>'
+    + '<div class="fb-field">'
+    +   '<label for="fb-texto">Tu comentario <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>'
+    +   '<textarea id="fb-texto" placeholder="Contanos qué te pareció, qué mejorarías o qué fue lo más útil..."></textarea>'
+    + '</div>'
+    + '<div class="fb-field">'
+    +   '<label for="fb-nombre">Tu nombre o empresa <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional — se muestra en la web si aprobamos tu reseña)</span></label>'
+    +   '<input type="text" id="fb-nombre" placeholder="Ej: Rafael N., Asesor Financiero" />'
+    + '</div>'
+    + '<div id="fb-error" class="fb-error">Seleccioná al menos una estrella.</div>'
+    + '<div class="fb-btns">'
+    +   '<button id="fb-submit-btn" class="fb-btn-p" onclick="_enviarFeedback()">Enviar y ver planes →</button>'
+    +   '<button class="fb-btn-s" onclick="_saltarFeedback()">Saltar</button>'
+    + '</div>'
+    + '</div>';
+  overlay.addEventListener("click", function(e) {
+    if (e.target === overlay) _saltarFeedback();
+  });
+  document.body.appendChild(overlay);
+
+  // Stars interaction
+  var stars = overlay.querySelectorAll(".fb-star");
+  stars.forEach(function(star) {
+    star.addEventListener("mouseenter", function() {
+      var v = parseInt(star.getAttribute("data-v"));
+      stars.forEach(function(s) {
+        s.classList.toggle("on", parseInt(s.getAttribute("data-v")) <= v);
+      });
+    });
+    star.addEventListener("click", function() {
+      _fbEstrellas = parseInt(star.getAttribute("data-v"));
+      stars.forEach(function(s) {
+        s.classList.toggle("on", parseInt(s.getAttribute("data-v")) <= _fbEstrellas);
+      });
+    });
+  });
+  var wrap = overlay.querySelector("#fb-stars-wrap");
+  if (wrap) wrap.addEventListener("mouseleave", function() {
+    stars.forEach(function(s) {
+      s.classList.toggle("on", parseInt(s.getAttribute("data-v")) <= _fbEstrellas);
+    });
+  });
+}
+
+async function _enviarFeedback() {
+  if (_fbEstrellas === 0) {
+    var errEl = document.getElementById("fb-error");
+    if (errEl) errEl.style.display = "block";
+    return;
+  }
+  var btn = document.getElementById("fb-submit-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
+  var texto  = (document.getElementById("fb-texto")  ? document.getElementById("fb-texto").value  : "").trim();
+  var nombre = (document.getElementById("fb-nombre") ? document.getElementById("fb-nombre").value : "").trim();
+  var user   = auth.currentUser;
+  try {
+    await db.collection("feedback").add({
+      uid:           user ? user.uid   : "",
+      email:         user ? user.email : "",
+      nombre_publico: nombre,
+      texto:         texto,
+      estrellas:     _fbEstrellas,
+      aprobado:      false,
+      creado_en:     firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    if (user) localStorage.setItem("ahc_fb_" + user.uid, "1");
+  } catch (e) {
+    console.warn("[FEEDBACK]", e);
+  }
+  _cerrarFeedbackModal();
+  mostrarPaywall("expired");
+}
+
+function _saltarFeedback() {
+  _cerrarFeedbackModal();
+  mostrarPaywall("expired");
+}
+
+function _cerrarFeedbackModal() {
+  _feedbackDado = true;
+  var el = document.getElementById("fb-overlay");
+  if (el) el.remove();
+}
+
+// ── TESTIMONIOS (solo index.html) ─────────────────────────────────────────────
+
+function _cargarTestimonios() {
+  var grid = document.getElementById("testimonios-grid");
+  if (!grid) return;
+  db.collection("feedback")
+    .where("aprobado", "==", true)
+    .orderBy("creado_en", "desc")
+    .limit(6)
+    .get()
+    .then(function(snap) {
+      if (snap.empty) {
+        var sec = document.getElementById("testimonios-section");
+        if (sec) sec.style.display = "none";
+        return;
+      }
+      grid.innerHTML = snap.docs.map(function(doc) {
+        var d = doc.data();
+        var stars = [1,2,3,4,5].map(function(i) {
+          return '<span class="t-star' + (i <= d.estrellas ? " on" : "") + '">★</span>';
+        }).join("");
+        return '<div class="t-card">'
+          + '<div class="t-stars">' + stars + '</div>'
+          + (d.texto ? '<div class="t-texto">&ldquo;' + escHtml(d.texto) + '&rdquo;</div>' : '')
+          + (d.nombre_publico ? '<div class="t-nombre">— ' + escHtml(d.nombre_publico) + '</div>' : '')
+          + '</div>';
+      }).join("");
+    })
+    .catch(function() {
+      var sec = document.getElementById("testimonios-section");
+      if (sec) sec.style.display = "none";
+    });
+}
+
+if (document.getElementById("testimonios-grid")) _cargarTestimonios();
+
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 
+// ── Toast de bienvenida post-registro ──────────────────────────────────────
+
+function _mostrarToastBienvenida() {
+  if (document.getElementById("ahc-toast")) return;
+  if (!document.getElementById("ahc-toast-style")) {
+    var s = document.createElement("style");
+    s.id  = "ahc-toast-style";
+    s.textContent =
+      "@keyframes _ahc_in{from{transform:translate(-50%,20px);opacity:0}to{transform:translate(-50%,0);opacity:1}}"
+      + "#ahc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);"
+      + "background:#1a6e3a;color:#fff;padding:14px 24px;border-radius:6px;"
+      + "font-size:0.88rem;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.22);"
+      + "z-index:10000;animation:_ahc_in .35s ease;max-width:90vw;text-align:center}";
+    document.head.appendChild(s);
+  }
+  var el = document.createElement("div");
+  el.id  = "ahc-toast";
+  el.textContent = "¡Listo! Ya tenés tus créditos gratis para empezar. Subí tu primer documento.";
+  document.body.appendChild(el);
+  setTimeout(function() { if (el.parentNode) el.remove(); }, 5500);
+}
+
+// ── Verificación de email (solo usuarios email/contraseña) ─────────────────
+
+function mostrarVerificacionPendiente(user) {
+  if (document.getElementById("verify-overlay")) return;
+  if (!document.getElementById("verify-styles")) {
+    var s = document.createElement("style");
+    s.id  = "verify-styles";
+    s.textContent =
+      "#verify-overlay{position:fixed;inset:0;background:rgba(4,13,24,.78);z-index:9600;display:flex;align-items:center;justify-content:center;padding:20px}"
+      + "#verify-modal{background:#fff;border-radius:8px;padding:44px 40px;max-width:440px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.28);text-align:center;font-family:'Segoe UI',system-ui,sans-serif}"
+      + ".vy-icon{font-size:2.8rem;margin-bottom:20px;line-height:1}"
+      + ".vy-titulo{font-size:1.3rem;font-weight:700;color:#040d18;margin-bottom:12px}"
+      + ".vy-txt{font-size:0.88rem;color:#3a5068;line-height:1.7;margin-bottom:8px}"
+      + ".vy-email{font-weight:700;color:#1a56a0}"
+      + ".vy-btns{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}"
+      + ".vy-btn-p{flex:1;padding:12px;background:#1a56a0;color:#fff;border:none;border-radius:4px;font-size:0.88rem;font-weight:700;cursor:pointer;transition:background .15s;font-family:inherit}"
+      + ".vy-btn-p:hover{background:#1464bf}"
+      + ".vy-btn-p:disabled{opacity:.55;cursor:not-allowed}"
+      + ".vy-btn-s{flex:1;padding:12px;background:transparent;color:#3a5068;border:1.5px solid #c8d4e0;border-radius:4px;font-size:0.88rem;font-weight:600;cursor:pointer;font-family:inherit;transition:border-color .15s}"
+      + ".vy-btn-s:hover{border-color:#1a56a0;color:#1a56a0}"
+      + ".vy-btn-s:disabled{opacity:.55;cursor:not-allowed}"
+      + ".vy-msg{font-size:0.78rem;margin-top:16px;line-height:1.5;min-height:1.2em}"
+      + ".vy-logout{font-size:0.78rem;color:#a0b4c8;margin-top:16px;text-decoration:underline;cursor:pointer}"
+      + ".vy-logout:hover{color:#3a5068}"
+      + "@media(max-width:480px){#verify-modal{padding:32px 20px}.vy-btns{flex-direction:column}}";
+    document.head.appendChild(s);
+  }
+  var email = user.email || "";
+  var overlay = document.createElement("div");
+  overlay.id  = "verify-overlay";
+  overlay.innerHTML =
+    '<div id="verify-modal">'
+    + '<div class="vy-icon">✉</div>'
+    + '<div class="vy-titulo">Verificá tu email para empezar</div>'
+    + '<div class="vy-txt">Te enviamos un correo a <span class="vy-email">' + escHtml(email) + '</span>.<br>Hacé click en el enlace y volvé acá para activar tus créditos.</div>'
+    + '<div id="vy-status" class="vy-msg" style="color:#7a90a4"></div>'
+    + '<div class="vy-btns">'
+    +   '<button id="vy-check-btn" class="vy-btn-p" onclick="_checkVerificado()">Ya verifiqué</button>'
+    +   '<button id="vy-resend-btn" class="vy-btn-s" onclick="_reenviarVerificacion()">Reenviar correo</button>'
+    + '</div>'
+    + '<div class="vy-logout" onclick="_cerrarSesionVerificacion()">¿No es tu email? Cerrar sesión</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+}
+
+async function _checkVerificado() {
+  var btn = document.getElementById("vy-check-btn");
+  var msg = document.getElementById("vy-status");
+  if (btn) { btn.disabled = true; btn.textContent = "Verificando..."; }
+  try {
+    await auth.currentUser.reload();
+    if (auth.currentUser.emailVerified) {
+      var el = document.getElementById("verify-overlay");
+      if (el) el.remove();
+      iniciarEscuchaCreditos(auth.currentUser);
+    } else {
+      if (msg) { msg.style.color = "#b02020"; msg.textContent = "El email todavía no fue verificado. Revisá tu bandeja (y la carpeta de spam)."; }
+      if (btn) { btn.disabled = false; btn.textContent = "Ya verifiqué"; }
+    }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Ya verifiqué"; }
+  }
+}
+
+async function _reenviarVerificacion() {
+  var btn = document.getElementById("vy-resend-btn");
+  var msg = document.getElementById("vy-status");
+  if (btn) btn.disabled = true;
+  try {
+    await auth.currentUser.sendEmailVerification();
+    if (msg) { msg.style.color = "#1a6e3a"; msg.textContent = "✓ Correo reenviado. Revisá tu bandeja de entrada."; }
+    if (btn) btn.textContent = "✓ Reenviado";
+    setTimeout(function() {
+      var b = document.getElementById("vy-resend-btn");
+      if (b) { b.disabled = false; b.textContent = "Reenviar correo"; }
+    }, 30000);
+  } catch (e) {
+    if (msg) { msg.style.color = "#b02020"; msg.textContent = "No se pudo reenviar. Esperá un momento e intentá de nuevo."; }
+    if (btn) btn.disabled = false;
+  }
+}
+
+function _cerrarSesionVerificacion() {
+  if (_unsubCreditos) { _unsubCreditos(); _unsubCreditos = null; }
+  auth.signOut().then(function() {
+    var el = document.getElementById("verify-overlay");
+    if (el) el.remove();
+  });
+}
+
+// ── Modal de autenticación ─────────────────────────────────────────────────
+
+var _authModo = "register";
+
 function loginGoogle() {
+  abrirModalAuth();
+}
+
+function _triggerGoogleSignIn() {
+  cerrarModalAuth();
   var provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider);
+  auth.signInWithPopup(provider).catch(function(e) {
+    console.warn("[AUTH] Google:", e.message);
+  });
+}
+
+function cerrarModalAuth() {
+  var el = document.getElementById("auth-modal-overlay");
+  if (el) el.remove();
+}
+
+function abrirModalAuth() {
+  if (document.getElementById("auth-modal-overlay")) return;
+  if (!document.getElementById("auth-modal-styles")) {
+    var s = document.createElement("style");
+    s.id  = "auth-modal-styles";
+    s.textContent =
+      "#auth-modal-overlay{position:fixed;inset:0;background:rgba(4,13,24,.72);z-index:9500;display:flex;align-items:center;justify-content:center;padding:20px}"
+      + "#auth-modal{background:#fff;border-radius:8px;padding:36px 40px;max-width:420px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.28);position:relative;font-family:'Segoe UI',system-ui,sans-serif}"
+      + ".am-close{position:absolute;top:14px;right:16px;background:none;border:none;cursor:pointer;font-size:1.1rem;color:#a0b4c8;line-height:1;padding:4px}"
+      + ".am-close:hover{color:#1a2535}"
+      + ".am-label{font-size:0.68rem;font-weight:700;color:#1a56a0;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px}"
+      + ".am-titulo{font-size:1.28rem;font-weight:700;color:#040d18;margin-bottom:6px;line-height:1.3}"
+      + ".am-subtitulo{font-size:0.82rem;color:#3a5068;margin-bottom:24px;line-height:1.5}"
+      + ".am-btn-google{width:100%;padding:12px;background:#fff;border:1.5px solid #c8d4e0;border-radius:4px;font-size:0.9rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;color:#1a2535;transition:border-color .15s,box-shadow .15s;font-family:inherit}"
+      + ".am-btn-google:hover{border-color:#1a56a0;box-shadow:0 0 0 3px rgba(26,86,160,.08)}"
+      + ".am-google-icon{width:18px;height:18px;flex-shrink:0}"
+      + ".am-sep{display:flex;align-items:center;gap:12px;margin:20px 0}"
+      + ".am-sep::before,.am-sep::after{content:'';flex:1;height:1px;background:#e0e8f0}"
+      + ".am-sep-txt{font-size:0.72rem;color:#7a90a4;letter-spacing:1px;text-transform:uppercase;flex-shrink:0}"
+      + ".am-field{margin-bottom:16px}"
+      + ".am-field label{display:block;font-size:0.72rem;font-weight:700;color:#3a5068;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}"
+      + ".am-field input{width:100%;padding:10px 12px;border:1.5px solid #c8d4e0;border-radius:4px;font-size:0.9rem;font-family:inherit;color:#040d18;background:#fff;transition:border-color .15s;box-sizing:border-box}"
+      + ".am-field input:focus{outline:none;border-color:#1a56a0;box-shadow:0 0 0 3px rgba(26,86,160,.08)}"
+      + ".am-error{font-size:0.8rem;color:#b02020;margin-bottom:12px;display:none;line-height:1.4}"
+      + ".am-error.ok{color:#1a6e3a}"
+      + ".am-btn-submit{width:100%;padding:12px;background:#1a56a0;color:#fff;border:none;border-radius:4px;font-size:0.9rem;font-weight:700;cursor:pointer;transition:background .15s;font-family:inherit;margin-bottom:16px}"
+      + ".am-btn-submit:hover{background:#1464bf}"
+      + ".am-btn-submit:disabled{opacity:.55;cursor:not-allowed}"
+      + ".am-toggle{text-align:center;font-size:0.82rem;color:#3a5068;margin-bottom:8px}"
+      + ".am-toggle a{color:#1a56a0;text-decoration:none;cursor:pointer;font-weight:600}"
+      + ".am-toggle a:hover{text-decoration:underline}"
+      + ".am-reset{text-align:center;font-size:0.78rem}"
+      + ".am-reset a{color:#7a90a4;text-decoration:underline;cursor:pointer}"
+      + ".am-reset a:hover{color:#1a56a0}"
+      + "@media(max-width:480px){#auth-modal{padding:28px 20px}}";
+    document.head.appendChild(s);
+  }
+  _authModo = "register";
+  var overlay = document.createElement("div");
+  overlay.id  = "auth-modal-overlay";
+  overlay.innerHTML =
+    '<div id="auth-modal">'
+    + '<button class="am-close" onclick="cerrarModalAuth()">✕</button>'
+    + '<div class="am-label">AHC Intelligence</div>'
+    + '<div id="am-titulo" class="am-titulo">Registrate gratis y empezá</div>'
+    + '<div id="am-subtitulo" class="am-subtitulo">Tus créditos quedan listos al instante · Sin tarjeta</div>'
+    + '<button class="am-btn-google" onclick="_triggerGoogleSignIn()">'
+    +   '<svg class="am-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>'
+    +   '<path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>'
+    +   '<path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>'
+    +   '<path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>'
+    +   '</svg>'
+    +   'Continuar con Google'
+    + '</button>'
+    + '<div class="am-sep"><span class="am-sep-txt">o</span></div>'
+    + '<div class="am-field">'
+    +   '<label for="auth-email">Email</label>'
+    +   '<input type="email" id="auth-email" placeholder="tu@email.com" autocomplete="email" />'
+    + '</div>'
+    + '<div class="am-field">'
+    +   '<label for="auth-pwd">Contraseña</label>'
+    +   '<input type="password" id="auth-pwd" placeholder="Mínimo 6 caracteres" autocomplete="new-password" />'
+    + '</div>'
+    + '<div id="am-error" class="am-error"></div>'
+    + '<button id="am-submit-btn" class="am-btn-submit" onclick="_submitEmailAuth()">Crear cuenta</button>'
+    + '<div class="am-toggle" id="am-toggle-txt">¿Ya tenés cuenta? <a onclick="_toggleAuthModo()">Iniciá sesión</a></div>'
+    + '<div class="am-reset"><a onclick="_resetPassword()">¿Olvidaste tu contraseña?</a></div>'
+    + '</div>';
+  overlay.addEventListener("click", function(e) {
+    if (e.target === overlay) cerrarModalAuth();
+  });
+  document.body.appendChild(overlay);
+  setTimeout(function() {
+    var inp = document.getElementById("auth-email");
+    if (inp) inp.focus();
+    var pwd = document.getElementById("auth-pwd");
+    if (pwd) pwd.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") _submitEmailAuth();
+    });
+  }, 120);
+}
+
+function _toggleAuthModo() {
+  _authModo = _authModo === "register" ? "login" : "register";
+  var titulo    = document.getElementById("am-titulo");
+  var subtitulo = document.getElementById("am-subtitulo");
+  var btn       = document.getElementById("am-submit-btn");
+  var toggle    = document.getElementById("am-toggle-txt");
+  var pwd       = document.getElementById("auth-pwd");
+  var err       = document.getElementById("am-error");
+  if (err) { err.style.display = "none"; err.className = "am-error"; }
+  if (_authModo === "login") {
+    if (titulo)    titulo.textContent    = "Iniciá sesión";
+    if (subtitulo) subtitulo.textContent = "Bienvenido de nuevo a AHC Intelligence.";
+    if (btn)       btn.textContent       = "Iniciar sesión";
+    if (pwd)     { pwd.placeholder = "Tu contraseña"; pwd.autocomplete = "current-password"; }
+    if (toggle)    toggle.innerHTML = '¿No tenés cuenta? <a onclick="_toggleAuthModo()">Registrate gratis</a>';
+  } else {
+    if (titulo)    titulo.textContent    = "Registrate gratis y empezá";
+    if (subtitulo) subtitulo.textContent = "Tus créditos quedan listos al instante · Sin tarjeta";
+    if (btn)       btn.textContent       = "Crear cuenta";
+    if (pwd)     { pwd.placeholder = "Mínimo 6 caracteres"; pwd.autocomplete = "new-password"; }
+    if (toggle)    toggle.innerHTML = '¿Ya tenés cuenta? <a onclick="_toggleAuthModo()">Iniciá sesión</a>';
+  }
+}
+
+async function _submitEmailAuth() {
+  var emailEl = document.getElementById("auth-email");
+  var pwdEl   = document.getElementById("auth-pwd");
+  var errEl   = document.getElementById("am-error");
+  var btn     = document.getElementById("am-submit-btn");
+  var email   = (emailEl ? emailEl.value : "").trim();
+  var pwd     = pwdEl ? pwdEl.value : "";
+  if (!email || !pwd) {
+    if (errEl) { errEl.className = "am-error"; errEl.textContent = "Completá email y contraseña."; errEl.style.display = "block"; }
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = _authModo === "register" ? "Creando cuenta..." : "Ingresando..."; }
+  if (errEl) errEl.style.display = "none";
+  try {
+    if (_authModo === "register") {
+      var cred = await auth.createUserWithEmailAndPassword(email, pwd);
+      await cred.user.sendEmailVerification();
+    } else {
+      await auth.signInWithEmailAndPassword(email, pwd);
+    }
+    cerrarModalAuth();
+  } catch (e) {
+    if (errEl) { errEl.className = "am-error"; errEl.textContent = _traducirErrorFirebase(e.code); errEl.style.display = "block"; }
+    if (btn)   { btn.disabled = false; btn.textContent = _authModo === "register" ? "Crear cuenta" : "Iniciar sesión"; }
+  }
+}
+
+async function _resetPassword() {
+  var emailEl = document.getElementById("auth-email");
+  var errEl   = document.getElementById("am-error");
+  var email   = (emailEl ? emailEl.value : "").trim();
+  if (!email) {
+    if (errEl) { errEl.className = "am-error"; errEl.textContent = "Ingresá tu email arriba para recuperar tu contraseña."; errEl.style.display = "block"; }
+    if (emailEl) emailEl.focus();
+    return;
+  }
+  try {
+    await auth.sendPasswordResetEmail(email);
+    if (errEl) { errEl.className = "am-error ok"; errEl.textContent = "✓ Te enviamos un correo para restablecer tu contraseña."; errEl.style.display = "block"; }
+  } catch (e) {
+    if (errEl) { errEl.className = "am-error"; errEl.textContent = _traducirErrorFirebase(e.code); errEl.style.display = "block"; }
+  }
+}
+
+function _traducirErrorFirebase(code) {
+  var msgs = {
+    "auth/email-already-in-use": "Ya existe una cuenta con ese email. Usá 'Iniciá sesión'.",
+    "auth/invalid-email":        "El formato del email no es válido.",
+    "auth/weak-password":        "La contraseña debe tener al menos 6 caracteres.",
+    "auth/user-not-found":       "No encontramos una cuenta con ese email.",
+    "auth/wrong-password":       "Contraseña incorrecta.",
+    "auth/too-many-requests":    "Demasiados intentos. Esperá unos minutos e intentá de nuevo.",
+    "auth/invalid-credential":   "Email o contraseña incorrectos.",
+    "auth/network-request-failed": "Error de conexión. Verificá tu internet.",
+    "auth/popup-closed-by-user": "Se cerró el popup antes de completar el inicio de sesión.",
+  };
+  return msgs[code] || "Error al autenticar. Intentá de nuevo.";
 }
 
 function logout() {
@@ -2445,20 +2919,33 @@ function logout() {
 }
 
 auth.onAuthStateChanged(function(user) {
-  var loginBtn  = document.getElementById("btn-login");
-  var logoutBtn = document.getElementById("btn-logout");
-  var userInfo  = document.getElementById("user-info");
+  var loginBtn    = document.getElementById("btn-login");
+  var logoutBtn   = document.getElementById("btn-logout");
+  var userInfo    = document.getElementById("user-info");
   var creditBadge = document.getElementById("creditos-badge");
+
+  var heroCta = document.getElementById("hero-cta-wrap");
 
   if (user) {
     if (loginBtn)  loginBtn.style.display  = "none";
     if (logoutBtn) logoutBtn.style.display = "inline-block";
-    if (userInfo)  userInfo.textContent    = "Hola, " + user.displayName;
+    if (heroCta)   heroCta.style.display   = "none";
+    var nombre = user.displayName || (user.email ? user.email.split("@")[0] : "");
+    if (userInfo) userInfo.textContent = "Hola, " + nombre;
+
+    // Email/contraseña sin verificar → overlay bloqueante hasta confirmar
+    var esEmailPwd = user.providerData.length > 0 && user.providerData[0].providerId === "password";
+    if (esEmailPwd && !user.emailVerified) {
+      mostrarVerificacionPendiente(user);
+      return;
+    }
+
     iniciarEscuchaCreditos(user);
   } else {
-    if (loginBtn)  loginBtn.style.display  = "inline-block";
-    if (logoutBtn) logoutBtn.style.display = "none";
-    if (userInfo)  userInfo.textContent    = "";
+    if (loginBtn)    loginBtn.style.display    = "inline-block";
+    if (logoutBtn)   logoutBtn.style.display   = "none";
+    if (heroCta)     heroCta.style.display     = "";
+    if (userInfo)    userInfo.textContent       = "";
     if (creditBadge) creditBadge.style.display = "none";
     _creditos = null;
   }

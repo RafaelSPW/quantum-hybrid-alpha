@@ -275,52 +275,142 @@ def procesar_tarea_legal_chat(db, doc_ref, data: dict):
     print(f"[LEGAL CHAT] Respuesta generada para uid={data.get('uid')}")
 
 
+def procesar_tarea_generar_articulo(db, doc_ref, data: dict):
+    """Genera un artículo con Gemini y lo guarda en la colección 'articulos' (sin publicar)."""
+    from google import genai
+    from google.genai import types
+    import json
+
+    tema         = data.get("tema", "Inteligencia financiera y compliance")
+    tag          = data.get("tag", "General")
+    instrucciones = data.get("instrucciones", "").strip()
+    extra        = f"\nInstrucciones adicionales del editor: {instrucciones}" if instrucciones else ""
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    prompt = f"""Eres un redactor senior especializado en finanzas, compliance y mercados de capitales para AHC Intelligence, plataforma de inteligencia financiera orientada a asesores de riesgo latinoamericanos.
+
+Escribí un artículo profesional sobre: {tema}
+Categoría: {tag}{extra}
+
+Requisitos:
+- Título atractivo y profesional (sin clickbait)
+- Resumen ejecutivo de 2-3 oraciones directo al punto
+- 4 a 6 secciones con subtítulos claros
+- Lenguaje profesional pero accesible para asesores financieros
+- Entre 600 y 900 palabras de contenido
+- Orientado al mercado latinoamericano (Argentina, Uruguay, México principalmente)
+- Párrafos cortos, aptos para lectura en mobile
+
+Respondé ESTRICTAMENTE en JSON:
+{{
+  "titulo": "título del artículo",
+  "resumen": "resumen ejecutivo de 2-3 oraciones",
+  "tag": "{tag}",
+  "contenido_html": "contenido completo en HTML. Solo el body. Usar <h2> para secciones, <p> para párrafos, <strong> para énfasis, <ul>/<li> para listas. Sin <html>, <head>, ni <body>."
+}}"""
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.7,
+        ),
+    )
+    resultado = json.loads(response.text)
+
+    art_ref = db.collection("articulos").document()
+    art_ref.set({
+        "titulo":          resultado.get("titulo", tema),
+        "resumen":         resultado.get("resumen", ""),
+        "tag":             resultado.get("tag", tag),
+        "contenido_html":  resultado.get("contenido_html", ""),
+        "publicado":       False,
+        "generado_por_ia": True,
+        "creado_en":       firestore.SERVER_TIMESTAMP,
+        "actualizado_en":  firestore.SERVER_TIMESTAMP,
+    })
+
+    doc_ref.update({
+        "status":       "COMPLETADO",
+        "resultado":    {"articulo_id": art_ref.id},
+        "procesado_en": firestore.SERVER_TIMESTAMP,
+    })
+    print(f"[ARTICULO] Generado: '{resultado.get('titulo')}' (id: {art_ref.id})")
+
+
 def main():
     init_db()
-    db = init_firebase()
-    print("[SISTEMA] Procesador local iniciado. Escuchando tareas en Firestore...")
+
+    # Reintentar la conexión a Firestore si falla al arrancar
+    db = None
+    for intento in range(10):
+        try:
+            db = init_firebase()
+            db.collection("tareas_pendientes").limit(1).get()  # ping para verificar conexión
+            print("[SISTEMA] Procesador local iniciado. Escuchando tareas en Firestore...")
+            break
+        except Exception as e:
+            wait = 2 ** intento
+            print(f"[SISTEMA] Error al conectar con Firestore (intento {intento+1}/10): {e}. Reintentando en {wait}s...")
+            time.sleep(wait)
+            try:
+                firebase_admin.get_app()
+                firebase_admin.delete_app(firebase_admin.get_app())
+            except Exception:
+                pass
+
+    if db is None:
+        print("[FATAL] No se pudo conectar a Firestore después de 10 intentos. Abortando.")
+        return
 
     # Monitor PayPal en thread paralelo (no bloquea el procesador principal)
     t = threading.Thread(target=monitorear_suscripciones, args=(db,), daemon=True)
     t.start()
 
     while True:
-        tareas = (
-            db.collection("tareas_pendientes")
-            .where(filter=firestore.FieldFilter("status", "==", "PENDIENTE"))
-            .limit(5)
-            .stream()
-        )
+        try:
+            tareas = (
+                db.collection("tareas_pendientes")
+                .where(filter=firestore.FieldFilter("status", "==", "PENDIENTE"))
+                .limit(5)
+                .stream()
+            )
 
-        for tarea in tareas:
-            data    = tarea.to_dict()
-            doc_ref = db.collection("tareas_pendientes").document(tarea.id)
-            doc_ref.update({"status": "EN_PROCESO"})
+            for tarea in tareas:
+                data    = tarea.to_dict()
+                doc_ref = db.collection("tareas_pendientes").document(tarea.id)
+                doc_ref.update({"status": "EN_PROCESO"})
 
-            tipo = data.get("tipo")
-            try:
-                if tipo == "compliance":
-                    procesar_tarea_compliance(db, doc_ref, data)
-                elif tipo == "markets":
-                    procesar_tarea_markets(db, doc_ref, data)
-                elif tipo == "contracts":
-                    procesar_tarea_contracts(db, doc_ref, data)
-                elif tipo == "legal_chat":
-                    procesar_tarea_legal_chat(db, doc_ref, data)
-                elif tipo == "forensic":
-                    procesar_tarea_forensic(db, doc_ref, data)
-                elif tipo == "market_strategy":
-                    procesar_tarea_market_strategy(db, doc_ref, data)
-                elif tipo == "market_asset":
-                    procesar_tarea_market_asset(db, doc_ref, data)
-                elif tipo == "market_audit":
-                    procesar_tarea_market_audit(db, doc_ref, data)
-                else:
-                    print(f"[WARN] Tipo desconocido: {tipo}")
-                    doc_ref.update({"status": "ERROR", "error": "Tipo desconocido"})
-            except Exception as e:
-                print(f"[ERROR] Tarea {tarea.id}: {e}")
-                doc_ref.update({"status": "ERROR", "error": str(e)})
+                tipo = data.get("tipo")
+                try:
+                    if tipo == "compliance":
+                        procesar_tarea_compliance(db, doc_ref, data)
+                    elif tipo == "markets":
+                        procesar_tarea_markets(db, doc_ref, data)
+                    elif tipo == "contracts":
+                        procesar_tarea_contracts(db, doc_ref, data)
+                    elif tipo == "legal_chat":
+                        procesar_tarea_legal_chat(db, doc_ref, data)
+                    elif tipo == "forensic":
+                        procesar_tarea_forensic(db, doc_ref, data)
+                    elif tipo == "market_strategy":
+                        procesar_tarea_market_strategy(db, doc_ref, data)
+                    elif tipo == "market_asset":
+                        procesar_tarea_market_asset(db, doc_ref, data)
+                    elif tipo == "market_audit":
+                        procesar_tarea_market_audit(db, doc_ref, data)
+                    elif tipo == "generar_articulo":
+                        procesar_tarea_generar_articulo(db, doc_ref, data)
+                    else:
+                        print(f"[WARN] Tipo desconocido: {tipo}")
+                        doc_ref.update({"status": "ERROR", "error": "Tipo desconocido"})
+                except Exception as e:
+                    print(f"[ERROR] Tarea {tarea.id}: {e}")
+                    doc_ref.update({"status": "ERROR", "error": str(e)})
+
+        except Exception as e:
+            print(f"[ERROR] Poll Firestore: {e}. Reintentando en {POLL_INTERVAL_SECONDS}s...")
 
         time.sleep(POLL_INTERVAL_SECONDS)
 
