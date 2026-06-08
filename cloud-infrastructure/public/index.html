@@ -200,6 +200,19 @@
     .art-link { font-size: 0.75rem; font-weight: 700; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
     .art-link::after { content: ' →'; }
 
+    /* FAQ */
+    .faq-wrap { padding: 52px 48px; background: var(--navy-mid); border-top: 1px solid var(--border); }
+    .faq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 32px; border: 1px solid var(--border); }
+    .faq-item { padding: 24px 28px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); cursor: pointer; transition: background .15s; }
+    .faq-item:nth-child(even) { border-right: none; }
+    .faq-item:nth-last-child(-n+2) { border-bottom: none; }
+    .faq-item:hover { background: var(--navy-lite); }
+    .faq-q { font-size: 0.9rem; font-weight: 700; color: var(--text-head); line-height: 1.4; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .faq-toggle { flex-shrink: 0; font-size: 1.1rem; color: var(--accent); font-weight: 300; transition: transform .2s; }
+    .faq-item.open .faq-toggle { transform: rotate(45deg); }
+    .faq-a { font-size: 0.85rem; color: var(--text-dim); line-height: 1.75; margin-top: 12px; display: none; }
+    .faq-item.open .faq-a { display: block; }
+
     /* CONSULTORÍA */
     .consultoria-wrap { padding: 52px 48px; background: linear-gradient(135deg, #040d18 0%, #0c1e38 100%); border-top: 1px solid #1a3a60; }
     .consultoria-inner { display: flex; align-items: center; justify-content: space-between; gap: 48px; }
@@ -310,6 +323,12 @@
 
       /* ── STATUS BAR ── */
       .status-bar { display: none; }
+
+      .faq-wrap      { padding: 32px 16px; }
+      .faq-grid      { grid-template-columns: 1fr; }
+      .faq-item      { border-right: none !important; }
+      .faq-item:nth-last-child(-n+2) { border-bottom: 1px solid var(--border) !important; }
+      .faq-item:last-child { border-bottom: none !important; }
 
       /* ── TESTIMONIOS / ARTÍCULOS / CONSULTORÍA / FOOTER ── */
       .testimonios-wrap { padding: 32px 16px; }
@@ -467,6 +486,56 @@
     </div>
   </section>
 
+  <!-- FAQ -->
+  <section class="faq-wrap">
+    <div class="inner">
+      <div class="modules-label">Preguntas frecuentes</div>
+      <div class="faq-grid" id="faq-grid">
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿Qué es AHC Intelligence y para quién está diseñado? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">AHC Intelligence es una plataforma de inteligencia financiera con IA, diseñada para asesores de compliance, due diligence, riesgo y mercados en América Latina. Permite investigar contrapartes, analizar contratos, auditar carteras y autenticar documentos desde un entorno profesional centralizado.</div>
+        </div>
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿Cómo funciona el análisis de due diligence KYC/AML? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">El sistema emplea búsqueda de medios adversos e inteligencia de fuentes abiertas (OSINT) mediante IA. Rastrea menciones del sujeto en noticias, registros judiciales, resoluciones regulatorias, diarios oficiales y otras fuentes públicas disponibles en internet al momento del análisis.</div>
+        </div>
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿El sistema consulta directamente listas OFAC o bases PEP oficiales? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">No. AHC Intelligence realiza screening de medios adversos y fuentes abiertas, no accede directamente a bases de sanciones oficiales (OFAC SDN, listas ONU) ni a registros PEP verificados de reguladores. Los resultados deben complementarse con la consulta a esas fuentes oficiales según el nivel de riesgo del caso.</div>
+        </div>
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿Mis datos y los de mis clientes son confidenciales? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">Sí. AHC Intelligence no comparte los datos ingresados con terceros no autorizados. La información se utiliza exclusivamente para generar el análisis solicitado y es tratada conforme a la legislación uruguaya de protección de datos personales (Ley 18.331).</div>
+        </div>
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿Puedo usar AHC Intelligence como único respaldo de un due diligence? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">No. Los análisis son herramientas de referencia para profesionales calificados y deben complementarse con la diligencia adicional que la normativa aplicable exija. AHC Intelligence no reemplaza el criterio profesional del asesor ni la consulta a bases de datos oficiales cuando el perfil de riesgo así lo requiere.</div>
+        </div>
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿Cómo funciona el sistema de créditos? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">Cada análisis consume una cantidad de créditos según su complejidad. El plan Trial incluye 150 créditos gratis por 7 días, sin tarjeta requerida. Los planes pagos ofrecen paquetes de créditos mensuales. Los créditos no utilizados no se acumulan entre ciclos.</div>
+        </div>
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿El análisis forense de documentos es real o simulado? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">Es un análisis técnico real. El sistema examina metadatos del archivo (creador, fechas, señales de edición), realiza Error Level Analysis (ELA) en imágenes y utiliza visión por IA para detectar alteraciones tipográficas, artefactos de compresión y señales de modificación digital en el documento adjuntado.</div>
+        </div>
+
+        <div class="faq-item" onclick="_faqToggle(this)">
+          <div class="faq-q">¿Necesito instalar algo o es 100% web? <span class="faq-toggle">+</span></div>
+          <div class="faq-a">La plataforma es 100% web, accedés desde cualquier navegador. No requiere instalación. El procesamiento se realiza en la nube de forma segura. Solo necesitás una cuenta y créditos disponibles para comenzar a operar.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <!-- CONSULTORÍA PERSONALIZADA -->
   <section class="consultoria-wrap">
     <div class="inner">
@@ -510,7 +579,8 @@
             <a href="articulos.html">Artículos e Insights</a>
           </div>
           <div class="footer-col">
-            <h4>Contacto</h4>
+            <h4>Legal</h4>
+            <a href="terminos.html">Términos y Condiciones</a>
             <a href="contacto.html">Consultoría personalizada</a>
             <a href="https://wa.me/59894032474?text=Hola,%20me%20interesa%20AHC%20Intelligence" target="_blank" rel="noopener">WhatsApp</a>
             <!-- Reemplazá # con tu URL cuando tengas las redes -->
@@ -537,6 +607,13 @@
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
   </a>
 
+  <script>
+    function _faqToggle(el) {
+      var isOpen = el.classList.contains("open");
+      document.querySelectorAll(".faq-item.open").forEach(function(x){ x.classList.remove("open"); });
+      if (!isOpen) el.classList.add("open");
+    }
+  </script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
