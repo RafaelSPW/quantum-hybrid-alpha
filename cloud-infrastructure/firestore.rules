@@ -60,6 +60,12 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // ── Consultas de consultoría — público puede crear, solo admin lee ────────
+    match /consultas/{docId} {
+      allow create: if true;
+      allow read, update, delete: if esAdmin();
+    }
+
     // ── Feedback de usuarios (moderado antes de publicar) ─────────────────────
     // El usuario crea con aprobado=false. Solo el backend (Admin SDK) puede aprobar.
     // Lectura pública para mostrar testimonios en landing.

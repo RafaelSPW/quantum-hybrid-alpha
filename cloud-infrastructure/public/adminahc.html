@@ -127,6 +127,19 @@
     #preview-frame ul, #preview-frame ol { margin: 0 0 14px 20px; }
     #preview-frame li { font-size: 0.96rem; color: #3a5068; line-height: 1.75; margin-bottom: 5px; }
 
+    /* ── TABS ── */
+    .tab-nav { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .tab-btn { padding: 10px 22px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-d); font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; font-family: inherit; transition: all .15s; margin-bottom: -1px; }
+    .tab-btn:hover { color: var(--text-h); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-badge { display: inline-block; background: var(--accent); color: #fff; font-size: 0.62rem; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+
+    /* ── CONSULTAS ── */
+    .badge-pend { background: rgba(250,140,0,.15); color: #faa030; }
+    .badge-vista { background: rgba(26,86,160,.15); color: #60a5fa; }
+    .badge-resp { background: rgba(26,106,58,.2); color: #4ade80; }
+    .consulta-desc { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-d); }
+
     @media (max-width: 700px) {
       .admin-content { padding: 16px; }
       .topbar { padding: 0 16px; }
@@ -185,7 +198,13 @@
 
     <div class="admin-content">
 
-      <!-- LISTA -->
+      <!-- TABS -->
+      <div class="tab-nav">
+        <button class="tab-btn active" id="tab-articulos" onclick="_switchTab('articulos')">Artículos</button>
+        <button class="tab-btn" id="tab-consultas" onclick="_switchTab('consultas')">Consultas <span class="tab-badge" id="consultas-badge" style="display:none"></span></button>
+      </div>
+
+      <!-- LISTA DE ARTÍCULOS -->
       <div id="vista-lista">
         <div class="section-header">
           <div class="section-title">Artículos</div>
@@ -280,6 +299,30 @@
           <button class="ed-btn prev"  onclick="_preview()">Vista previa</button>
         </div>
         <div class="ed-msg" id="ed-msg"></div>
+      </div>
+
+      <!-- CONSULTAS -->
+      <div id="vista-consultas" style="display:none">
+        <div class="section-header">
+          <div class="section-title">Consultas de clientes</div>
+          <button class="tbtn" onclick="_cargarConsultas()">Actualizar</button>
+        </div>
+        <div id="consultas-msg" class="loader-msg">Cargando consultas...</div>
+        <div id="consultas-empty" class="empty-msg" style="display:none">No hay consultas todavía.</div>
+        <table id="tabla-consultas" style="display:none">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Email</th>
+              <th>Tipo</th>
+              <th>Descripción</th>
+              <th>Fecha</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="consultas-body"></tbody>
+        </table>
       </div>
 
     </div>
@@ -633,6 +676,91 @@
           statusEl.className  = "ia-status err";
           statusEl.textContent = "Error al cargar el artículo: " + e.message;
         });
+    }
+
+    // ── TABS ────────────────────────────────────────────────────────────────────
+    function _switchTab(tab) {
+      var isArticulos = tab === "articulos";
+      document.getElementById("tab-articulos").className   = "tab-btn" + (isArticulos ? " active" : "");
+      document.getElementById("tab-consultas").className   = "tab-btn" + (!isArticulos ? " active" : "");
+      document.getElementById("vista-lista").style.display    = isArticulos ? "block" : "none";
+      document.getElementById("vista-editor").style.display   = "none";
+      document.getElementById("vista-consultas").style.display = isArticulos ? "none" : "block";
+      if (!isArticulos) _cargarConsultas();
+    }
+
+    // ── CONSULTAS ───────────────────────────────────────────────────────────────
+    var _TIPOS_LABEL = {
+      due_diligence: "Due Diligence / KYC-AML",
+      contrapartes:  "Contrapartes",
+      regulatorio:   "Regulatorio / Legal",
+      cartera:       "Auditoría cartera",
+      forense:       "Forense",
+      otro:          "Otro",
+      no_especificado: "No especificado",
+    };
+
+    function _cargarConsultas() {
+      var msgEl   = document.getElementById("consultas-msg");
+      var emptyEl = document.getElementById("consultas-empty");
+      var tablaEl = document.getElementById("tabla-consultas");
+      var bodyEl  = document.getElementById("consultas-body");
+      var badgeEl = document.getElementById("consultas-badge");
+
+      msgEl.style.display   = "block";
+      emptyEl.style.display = "none";
+      tablaEl.style.display = "none";
+      bodyEl.innerHTML      = "";
+
+      db.collection("consultas").orderBy("creado_en", "desc").limit(100).get()
+        .then(function(snap) {
+          msgEl.style.display = "none";
+          if (snap.empty) { emptyEl.style.display = "block"; return; }
+
+          var pendientes = 0;
+          snap.forEach(function(doc) {
+            var d  = doc.data();
+            var id = doc.id;
+            if (d.status === "pendiente") pendientes++;
+            var fecha = d.creado_en ? new Date(d.creado_en.toDate()).toLocaleDateString("es-UY") : "—";
+            var tipo  = _TIPOS_LABEL[d.tipo] || d.tipo || "—";
+            var badgeClass = d.status === "vista" ? "badge badge-vista" : d.status === "respondida" ? "badge badge-resp" : "badge badge-pend";
+            var badgeTxt   = d.status === "vista" ? "Vista" : d.status === "respondida" ? "Respondida" : "Pendiente";
+
+            var tr = document.createElement("tr");
+            tr.innerHTML =
+              "<td style='color:var(--text-h);font-weight:600'>" + _esc(d.nombre || "—") + (d.empresa ? "<br><small style='font-weight:400;color:var(--text-d)'>" + _esc(d.empresa) + "</small>" : "") + "</td>" +
+              "<td><a href='mailto:" + _esc(d.email) + "' style='color:var(--accent)'>" + _esc(d.email || "—") + "</a></td>" +
+              "<td style='color:var(--text-d);font-size:0.8rem'>" + _esc(tipo) + "</td>" +
+              "<td><div class='consulta-desc' title='" + _esc(d.descripcion) + "'>" + _esc(d.descripcion || "—") + "</div></td>" +
+              "<td style='color:var(--text-d);font-size:0.8rem;white-space:nowrap'>" + fecha + "</td>" +
+              "<td><span class='" + badgeClass + "'>" + badgeTxt + "</span></td>" +
+              "<td class='tbl-actions'>" +
+                (d.status === "pendiente" ? "<button class='tbl-btn' onclick='_marcarVista(\"" + id + "\",this)'>Marcar vista</button>" : "") +
+                "<button class='tbl-btn' onclick='_marcarRespondida(\"" + id + "\",this)'>Respondida</button>" +
+              "</td>";
+            bodyEl.appendChild(tr);
+          });
+
+          tablaEl.style.display = "table";
+          if (pendientes > 0) { badgeEl.textContent = pendientes; badgeEl.style.display = "inline-block"; }
+          else { badgeEl.style.display = "none"; }
+        })
+        .catch(function(e) { msgEl.textContent = "Error al cargar consultas: " + e.message; });
+    }
+
+    function _marcarVista(id, btn) {
+      btn.disabled = true;
+      db.collection("consultas").doc(id).update({ status: "vista" })
+        .then(function() { _cargarConsultas(); })
+        .catch(function(e) { btn.disabled = false; alert("Error: " + e.message); });
+    }
+
+    function _marcarRespondida(id, btn) {
+      btn.disabled = true;
+      db.collection("consultas").doc(id).update({ status: "respondida" })
+        .then(function() { _cargarConsultas(); })
+        .catch(function(e) { btn.disabled = false; alert("Error: " + e.message); });
     }
   </script>
 </body>

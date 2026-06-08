@@ -200,6 +200,23 @@
     .art-link { font-size: 0.75rem; font-weight: 700; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
     .art-link::after { content: ' →'; }
 
+    /* CONSULTORÍA */
+    .consultoria-wrap { padding: 52px 48px; background: linear-gradient(135deg, #040d18 0%, #0c1e38 100%); border-top: 1px solid #1a3a60; }
+    .consultoria-inner { display: flex; align-items: center; justify-content: space-between; gap: 48px; }
+    .consultoria-text { flex: 1; max-width: 640px; }
+    .consultoria-text .sec-label { font-size: 0.8rem; font-weight: 700; color: #5a8ab8; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 16px; }
+    .consultoria-text h2 { font-size: 2rem; font-weight: 700; color: #fff; line-height: 1.25; margin-bottom: 16px; }
+    .consultoria-text p { font-size: 0.97rem; color: #90b4cc; line-height: 1.8; margin-bottom: 24px; }
+    .consultoria-list { list-style: none; padding: 0; margin: 0 0 32px; display: flex; flex-direction: column; gap: 10px; }
+    .consultoria-list li { font-size: 0.88rem; color: #7aabe0; padding-left: 18px; position: relative; }
+    .consultoria-list li::before { content: '—'; position: absolute; left: 0; color: #5a8ab8; font-weight: 700; }
+    .btn-consultoria { display: inline-block; padding: 14px 32px; background: transparent; color: #fff; border: 1px solid #5a8ab8; border-radius: 4px; font-size: 0.9rem; font-weight: 700; text-decoration: none; letter-spacing: 0.5px; transition: all .2s; }
+    .btn-consultoria:hover { background: #1a4a78; border-color: #7aabe0; }
+    .consultoria-aside { flex-shrink: 0; text-align: center; padding: 36px 40px; border: 1px solid #1a3a60; border-radius: 4px; background: rgba(255,255,255,.03); }
+    .consultoria-aside .aside-num { font-size: 2.8rem; font-weight: 800; color: #fff; line-height: 1; }
+    .consultoria-aside .aside-label { font-size: 0.73rem; color: #7aabe0; letter-spacing: 0.5px; margin-top: 6px; }
+    .consultoria-aside .aside-sep { width: 40px; height: 1px; background: #1a3a60; margin: 20px auto; }
+
     /* FOOTER */
     .site-footer { background: #040d18; padding: 44px 48px 28px; border-top: 2px solid #1a3a60; }
     .footer-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 40px; margin-bottom: 36px; }
@@ -294,11 +311,15 @@
       /* ── STATUS BAR ── */
       .status-bar { display: none; }
 
-      /* ── TESTIMONIOS / ARTÍCULOS / FOOTER ── */
+      /* ── TESTIMONIOS / ARTÍCULOS / CONSULTORÍA / FOOTER ── */
       .testimonios-wrap { padding: 32px 16px; }
       .testimonios-grid { grid-template-columns: 1fr; gap: 12px; }
       .articulos-wrap   { padding: 32px 16px; }
       .articulos-grid   { grid-template-columns: 1fr; gap: 12px; }
+      .consultoria-wrap  { padding: 32px 16px; }
+      .consultoria-inner { flex-direction: column; gap: 24px; }
+      .consultoria-aside { display: none; }
+      .consultoria-text h2 { font-size: 1.4rem; }
       .site-footer      { padding: 32px 16px 20px; }
       .footer-top       { flex-direction: column; gap: 24px; }
       .footer-nav       { flex-direction: column; gap: 24px; }
@@ -446,6 +467,33 @@
     </div>
   </section>
 
+  <!-- CONSULTORÍA PERSONALIZADA -->
+  <section class="consultoria-wrap">
+    <div class="inner">
+      <div class="consultoria-inner">
+        <div class="consultoria-text">
+          <div class="sec-label">Servicio personalizado</div>
+          <h2>¿Necesitás una investigación a medida?</h2>
+          <p>Si tu caso requiere un análisis más profundo — due diligence corporativo, investigación de contrapartes, estrategia regulatoria o auditoría de cartera — podemos diseñar un servicio de consultoría específico para tus necesidades.</p>
+          <ul class="consultoria-list">
+            <li>Due diligence corporativo y KYC/AML avanzado</li>
+            <li>Investigación de contrapartes y redes empresariales</li>
+            <li>Estrategia regulatoria y análisis de riesgo legal</li>
+            <li>Auditoría y reposicionamiento de carteras</li>
+          </ul>
+          <a href="contacto.html" class="btn-consultoria">Solicitar consultoría</a>
+        </div>
+        <div class="consultoria-aside">
+          <div class="aside-num">24 hs</div>
+          <div class="aside-label">tiempo de respuesta<br>en días hábiles</div>
+          <div class="aside-sep"></div>
+          <div class="aside-num" style="font-size:1.6rem">100%</div>
+          <div class="aside-label">confidencial</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- FOOTER -->
   <footer class="site-footer">
     <div class="inner">
@@ -459,9 +507,11 @@
             <h4>Plataforma</h4>
             <a href="compliance-hub.html">Compliance &amp; Due Diligence</a>
             <a href="markets.html">Consultor de Mercados</a>
+            <a href="articulos.html">Artículos e Insights</a>
           </div>
           <div class="footer-col">
             <h4>Contacto</h4>
+            <a href="contacto.html">Consultoría personalizada</a>
             <a href="https://wa.me/59894032474?text=Hola,%20me%20interesa%20AHC%20Intelligence" target="_blank" rel="noopener">WhatsApp</a>
             <!-- Reemplazá # con tu URL cuando tengas las redes -->
             <a href="#" target="_blank" rel="noopener">LinkedIn</a>
