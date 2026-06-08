@@ -114,7 +114,7 @@ var _i18n = {
     "r.entidades.persona": "Entidades Vinculadas",
     "r.entidades.empresa": "Directivos / Beneficiarios Finales",
     "r.entidades.inmueble":"Titulares y Gravámenes",
-    "r.ofac":         "OFAC / Sanciones Internacionales",
+    "r.ofac":         "Menciones Adversas — Fuentes Abiertas",
     "r.fuentes":      "Fuentes Consultadas",
     "r.paises":       "Jurisdicciones Rastreadas",
     "r.forense":      "Análisis Forense Documental — 4 Capas",
@@ -166,7 +166,7 @@ var _i18n = {
     "r.entidades.persona": "Linked Entities",
     "r.entidades.empresa": "Directors / Ultimate Beneficial Owners",
     "r.entidades.inmueble":"Owners and Encumbrances",
-    "r.ofac":         "OFAC / International Sanctions",
+    "r.ofac":         "Adverse Mentions — Open Sources",
     "r.fuentes":      "Sources Consulted",
     "r.paises":       "Jurisdictions Traced",
     "r.forense":      "Document Forensic Analysis — 4 Layers",
@@ -1528,11 +1528,7 @@ function renderizarReporteCompliance(r, cliente) {
   if (r.fuentes && r.fuentes.length) {
     fuentesEl.innerHTML = r.fuentes.map(function(f){ return '<a class="url-link" href="' + escHtml(safeUrl(f.url)) + '" target="_blank" rel="noopener">' + escHtml(f.titulo||f.url) + '</a>'; }).join("");
   } else if (esMock) {
-    fuentesEl.innerHTML =
-      '<a class="url-link" href="https://www.ofac.treas.gov/SDN-List" target="_blank" rel="noopener">OFAC SDN List — U.S. Treasury</a>'
-      + '<a class="url-link" href="https://www.un.org/securitycouncil/sanctions/information" target="_blank" rel="noopener">UN Security Council — Sanctions</a>'
-      + '<a class="url-link" href="https://www.fatf-gafi.org/en/countries.html" target="_blank" rel="noopener">FATF/GAFI — High-risk countries</a>'
-      + '<p class="url-nota">' + (_lang === "en" ? "Real URLs will appear when Gemini API is active." : "Las URLs reales aparecerán cuando Gemini API esté activo.") + '</p>';
+    fuentesEl.innerHTML = '<p style="color:#888;font-size:0.85rem">' + (_lang === "en" ? "Sources will appear here once the AI search engine processes the request." : "Las fuentes encontradas aparecerán aquí cuando el motor de IA procese la solicitud.") + '</p>';
   } else { fuentesEl.innerHTML = '<p style="color:#555;font-size:0.9rem">' + t("no.fuentes") + '</p>'; }
 
   var paisesEl = document.getElementById("r-paises");
@@ -1543,6 +1539,12 @@ function renderizarReporteCompliance(r, cliente) {
   renderizarForense(r.analisis_forense_documental);
 
   if (r.conclusion_asesor) document.getElementById("r-conclusion").value = r.conclusion_asesor;
+
+  var alcanceEl = document.getElementById("r-alcance");
+  if (alcanceEl) {
+    alcanceEl.textContent = r.alcance_metodologico || "Análisis de medios adversos y fuentes abiertas mediante IA. No sustituye la consulta a listas oficiales de sanciones (OFAC SDN) ni a bases PEP verificadas; complementar según el nivel de riesgo del cliente.";
+    alcanceEl.closest(".seccion-alcance") && (alcanceEl.closest(".seccion-alcance").style.display = "block");
+  }
 
   document.getElementById("placeholder-msg").style.display = "none";
   container.style.display = "block";
@@ -1811,7 +1813,7 @@ function exportarPDF() {
     "<div class='grid full'><div class='sec'><div class='sec-titulo'>Resumen Ejecutivo</div><p>" + escHtml(resumen) + "</p></div></div>"
     + "<div class='grid' style='margin-top:14px'>"
     + "<div class='sec'><div class='sec-titulo'>Entidades Vinculadas</div>" + empresas + "</div>"
-    + "<div class='sec'><div class='sec-titulo'>OFAC / Sanciones</div>" + alertas + "</div></div>"
+    + "<div class='sec'><div class='sec-titulo'>Menciones Adversas</div>" + alertas + "</div></div>"
     + "<div class='grid' style='margin-top:14px'>"
     + "<div class='sec'><div class='sec-titulo'>Fuentes</div>" + fuentes + "</div>"
     + "<div class='sec'><div class='sec-titulo'>Jurisdicciones</div>" + paises + "</div></div>"

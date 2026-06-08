@@ -17,6 +17,12 @@ from agents.fuentes_oficiales_por_pais import formatear_fuentes_para_prompt
 # Cambiar a False cuando el saldo de Gemini esté activo
 MOCK_MODE = False
 
+DISCLAIMER_ALCANCE = (
+    "Análisis de medios adversos y fuentes abiertas mediante IA. "
+    "No sustituye la consulta a listas oficiales de sanciones (OFAC SDN) ni a bases PEP verificadas; "
+    "complementar según el nivel de riesgo del cliente."
+)
+
 SUSPICIOUS_CREATORS = [
     "photoshop", "illustrator", "canva", "gimp", "affinity",
     "inkscape", "pixelmator", "paint.net", "corel", "snapseed",
@@ -49,10 +55,11 @@ def _mock_resultado_empresa(datos_cliente: dict) -> dict:
             },
         ],
         "alertas_ofac_crimen": [
-            "Entidad no figura en lista OFAC SDN — verificado",
-            "Jurisdicción relacionada clasificada como alto riesgo por FATF",
+            "Sin menciones en fuentes abiertas para lista OFAC SDN — no se encontró referencia en medios",
+            "Jurisdicción relacionada con perfil de riesgo elevado según FATF — mención en fuentes abiertas",
         ],
         "paises_rastreados_efectivos": [datos_cliente.get('nacionalidad', '—'), "Islas Caimán"],
+        "alcance_metodologico": DISCLAIMER_ALCANCE,
         "_modo": "SIMULADO — activar MOCK_MODE=False cuando haya saldo Gemini",
     }
 
@@ -77,10 +84,11 @@ def _mock_resultado_inmueble(datos_cliente: dict) -> dict:
             },
         ],
         "alertas_ofac_crimen": [
-            "Titular no figura en listas de sanciones internacionales — verificado",
-            "Operación inmobiliaria bajo análisis por origen de fondos — ALERTA PREVENTIVA",
+            "Sin menciones del titular en fuentes abiertas vinculadas a sanciones internacionales",
+            "Mención encontrada en fuentes abiertas: operación inmobiliaria con señales de alerta por origen de fondos",
         ],
         "paises_rastreados_efectivos": [datos_cliente.get('nacionalidad', '—')],
+        "alcance_metodologico": DISCLAIMER_ALCANCE,
         "_modo": "SIMULADO — activar MOCK_MODE=False cuando haya saldo Gemini",
     }
 
@@ -110,10 +118,11 @@ def _mock_resultado(datos_cliente: dict) -> dict:
             },
         ],
         "alertas_ofac_crimen": [
-            "Homónimo detectado en base OFAC — descartado por divergencia documental",
-            "Ninguna coincidencia confirmada en listas ONU",
+            "Mención en fuentes abiertas: homónimo en referencia a lista OFAC — descartado por divergencia documental",
+            "Sin menciones en fuentes abiertas vinculadas a listas de sanciones ONU",
         ],
         "paises_rastreados_efectivos": ["Argentina", "Uruguay", "Suecia"],
+        "alcance_metodologico": DISCLAIMER_ALCANCE,
         "_modo": "SIMULADO — activar MOCK_MODE=False cuando haya saldo Gemini",
     }
 
@@ -370,18 +379,19 @@ INSTRUCCIONES OBLIGATORIAS:
    - "{datos_cliente['nombre']}" + "sanctioned"
    - "{datos_cliente['nombre']}" en los registros de comercio, Diario/Gaceta Oficial y autoridad ALD de cada país listado arriba.
 2. Identifica beneficiarios finales (UBO), directores y socios con participación superior al 25%.
-3. Verifica si la empresa o sus directivos están en listas OFAC, ONU o FATF.
+3. Busca menciones en fuentes abiertas que vinculen a la empresa o sus directivos con listas OFAC, ONU o FATF.
 4. Detecta vinculaciones con jurisdicciones de alto riesgo o esquemas de opacidad societaria.
 5. Busca antecedentes judiciales, administrativos o regulatorios de la entidad.
 
-REGLA CRÍTICA — "resumen_ejecutivo": Solo hechos constatados. PROHIBIDO recomendaciones o juicios de valor.
+REGLA CRÍTICA — "resumen_ejecutivo": Solo hechos constatados en fuentes abiertas. PROHIBIDO recomendaciones o juicios de valor.
+REGLA DE REPORTE: En "alertas_ofac_crimen" reportá cada hallazgo como "Mención encontrada en [fuente/URL]: descripción" o "Sin menciones en fuentes abiertas vinculadas a [lista]". NUNCA afirmes categóricamente que el sujeto está o no en una lista oficial de sanciones salvo que cites la URL de la fuente donde lo encontraste.
 
 Genera JSON estrictamente con esta estructura:
 {{
     "status_evaluacion": "APROBADO" | "ALERTA_RIESGO" | "BLOQUEADO",
     "resumen_ejecutivo": "...",
     "empresas_vinculadas": [{{"nombre_empresa": "Beneficiario/Director: Nombre", "pais": "...", "socios_detectados": ["cargo o participación"]}}],
-    "alertas_ofac_crimen": ["..."],
+    "alertas_ofac_crimen": ["Mención encontrada en [fuente]: descripción" o "Sin menciones en fuentes abiertas para [lista]"],
     "paises_rastreados_efectivos": ["..."]
 }}
 """
@@ -397,6 +407,7 @@ Genera JSON estrictamente con esta estructura:
         m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
         resultado = json.loads(m.group(1) if m else raw)
         resultado["fuentes"] = self._extraer_fuentes(response)
+        resultado["alcance_metodologico"] = DISCLAIMER_ALCANCE
         return resultado
 
     # ─── KYP: Inmueble ─────────────────────────────────────────────────────────
@@ -425,19 +436,20 @@ INSTRUCCIONES OBLIGATORIAS:
    - "{titular}" + "procesado"
    - "{titular}" + "money laundering"
    - Busca el inmueble y al titular en los registros de propiedad, catastro y fuentes oficiales listadas arriba.
-2. Verifica si el titular figura en listas OFAC, ONU o bases de delitos financieros.
+2. Busca menciones en fuentes abiertas que vinculen al titular con listas OFAC, ONU o bases de delitos financieros.
 3. Identifica gravámenes, hipotecas, embargos o litigios vigentes sobre el inmueble.
 4. Analiza consistencia entre el perfil patrimonial conocido del titular y el valor estimado del inmueble.
 5. Detecta señales de lavado: compras en efectivo, sobrevaluación, titulares offshore o múltiples traspasos.
 
-REGLA CRÍTICA — "resumen_ejecutivo": Solo hechos constatados. PROHIBIDO recomendaciones o juicios de valor.
+REGLA CRÍTICA — "resumen_ejecutivo": Solo hechos constatados en fuentes abiertas. PROHIBIDO recomendaciones o juicios de valor.
+REGLA DE REPORTE: En "alertas_ofac_crimen" reportá cada hallazgo como "Mención encontrada en [fuente/URL]: descripción" o "Sin menciones en fuentes abiertas vinculadas a [lista]". NUNCA afirmes categóricamente que el sujeto está o no en una lista oficial de sanciones salvo que cites la URL de la fuente donde lo encontraste.
 
 Genera JSON estrictamente con esta estructura:
 {{
     "status_evaluacion": "APROBADO" | "ALERTA_RIESGO" | "BLOQUEADO",
     "resumen_ejecutivo": "...",
     "empresas_vinculadas": [{{"nombre_empresa": "Titular/Gravamen: descripción", "pais": "...", "socios_detectados": ["detalle 1", "detalle 2"]}}],
-    "alertas_ofac_crimen": ["..."],
+    "alertas_ofac_crimen": ["Mención encontrada en [fuente]: descripción" o "Sin menciones en fuentes abiertas para [lista]"],
     "paises_rastreados_efectivos": ["..."]
 }}
 """
@@ -453,6 +465,7 @@ Genera JSON estrictamente con esta estructura:
         m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
         resultado = json.loads(m.group(1) if m else raw)
         resultado["fuentes"] = self._extraer_fuentes(response)
+        resultado["alcance_metodologico"] = DISCLAIMER_ALCANCE
         return resultado
 
     # ─── Investigación principal ──────────────────────────────────────────────
@@ -551,21 +564,22 @@ INSTRUCCIONES OBLIGATORIAS:
 2. Si encuentras vinculaciones en otros países, busca en las fuentes oficiales listadas arriba
    (Diario Oficial, registro de comercio, autoridad ALD) para identificar: empresas asociadas,
    socios, activos, vínculos con PEPs.
-3. Contrasta con listas OFAC, ONU, antecedentes de lavado de activos o crimen organizado.
+3. Busca menciones en fuentes abiertas que vinculen al sujeto con listas OFAC, ONU, antecedentes de lavado de activos o crimen organizado.
 4. Descarta homónimos que no coincidan con documento o perfil.
 5. Incluye en "empresas_vinculadas" tanto personas físicas vinculadas (funcionarios, colaboradores,
    investigados en conexión) como personas jurídicas (sociedades, empresas).
 
 REGLA CRÍTICA — "resumen_ejecutivo":
-- Solo hechos constatados: qué se encontró, dónde y cuándo.
+- Solo hechos constatados en fuentes abiertas: qué se encontró, en qué fuente y cuándo.
 - PROHIBIDO: recomendaciones, juicios de valor, frases como "se recomienda" o "se sugiere".
+REGLA DE REPORTE: En "alertas_ofac_crimen" reportá cada hallazgo como "Mención encontrada en [fuente/URL]: descripción" o "Sin menciones en fuentes abiertas vinculadas a [lista]". NUNCA afirmes categóricamente que el sujeto está o no en una lista oficial de sanciones salvo que cites la URL de la fuente donde lo encontraste.
 
 Genera JSON estrictamente con esta estructura:
 {{
     "status_evaluacion": "APROBADO" | "ALERTA_RIESGO" | "BLOQUEADO",
     "resumen_ejecutivo": "...",
     "empresas_vinculadas": [{{"nombre_empresa": "...", "pais": "...", "socios_detectados": ["..."]}}],
-    "alertas_ofac_crimen": ["..."],
+    "alertas_ofac_crimen": ["Mención encontrada en [fuente]: descripción" o "Sin menciones en fuentes abiertas para [lista]"],
     "paises_rastreados_efectivos": ["..."]
 }}
 """
@@ -581,6 +595,7 @@ Genera JSON estrictamente con esta estructura:
             m = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
             resultado = json.loads(m.group(1) if m else raw)
             resultado["fuentes"] = self._extraer_fuentes(kyc_response)
+            resultado["alcance_metodologico"] = DISCLAIMER_ALCANCE
 
         resultado["tipo_entidad"] = tipo_entidad
 
