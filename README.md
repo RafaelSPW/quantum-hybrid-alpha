@@ -497,6 +497,22 @@ El PDF incluye sección CONFIDENCIAL separada (alertas internas) que no puede se
 
 ## Registro de cambios
 
+### 9 Junio 2026 — Origen de Fondos + singleton OFAC 24h + deploy Cloud Run rev 00006
+
+**Cloud Run:** revision `quantum-processor-00006-g9v` activa.
+
+**Nuevo módulo `senaclaft_fondos` (30 créditos):**
+- Backend: `procesar_tarea_senaclaft_fondos()` — descarga PDF de Storage, extrae montos con pdfplumber (o Gemini Vision si es escaneado), evalúa congruencia con perfil declarado (ingresos/patrimonio/actividad)
+- Frontend: tab "Origen de Fondos" con upload PDF/JPG/PNG, campos de perfil del cliente, tabla de montos extraídos, semáforo verde/rojo de congruencia y advertencias de extracción
+- Los montos extraídos son orientativos; aviso explícito de verificación obligatoria antes de incorporar al legajo
+
+**Optimización OFAC — singleton en memoria:**
+- `ofac_loader.py`: caché disco 12h → **24h**; `threading.Lock` + instancia `_DB_INSTANCE` a nivel de módulo
+- Las listas OFAC (~10k entradas SDN + Consolidada) se parsean **una sola vez por día** en el primer request
+- Todos los usuarios del día reutilizan el mismo objeto en memoria sin releer el XML — latencia de requests siguientes: ~0ms de overhead de parsing
+
+---
+
 ### 9 Junio 2026 — Legajos tab + correcciones UI SENACLAFT + deploy Cloud Run rev 00005
 
 **Cloud Run:** revision `quantum-processor-00005-6mr` activa. Agrega soporte completo de `senaclaft_legajo` con cifrado KMS y check IDOR.
