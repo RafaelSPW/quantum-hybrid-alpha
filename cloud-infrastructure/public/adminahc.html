@@ -140,6 +140,29 @@
     .badge-resp { background: rgba(26,106,58,.2); color: #4ade80; }
     .consulta-desc { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-d); }
 
+    /* ── LISTAS DE SANCIONES ── */
+    .sanc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .sanc-card { background: var(--bg2); border: 1px solid var(--border); border-top: 3px solid var(--accent); padding: 20px 22px; }
+    .sanc-card-title { font-size: 0.72rem; font-weight: 700; color: var(--text-h); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; }
+    .sanc-card-sub { font-size: 0.75rem; color: var(--text-d); margin-bottom: 12px; }
+    .sanc-source { font-size: 0.72rem; color: var(--text-d); margin-bottom: 14px; line-height: 1.5; }
+    .sanc-source a { color: var(--accent); text-decoration: none; }
+    .sanc-source a:hover { text-decoration: underline; }
+    .sanc-last { font-size: 0.72rem; color: var(--text-d); margin-bottom: 14px; }
+    .sanc-last .ok { color: #4ade80; font-weight: 700; }
+    .sanc-last .none { color: #888; }
+    .sanc-file-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .sanc-file-input { flex: 1; min-width: 0; padding: 7px 10px; background: var(--bg); border: 1.5px solid var(--border); color: var(--text); font-size: 0.8rem; font-family: inherit; cursor: pointer; }
+    .sanc-file-input::-webkit-file-upload-button { display: none; }
+    .sanc-file-input::before { content: 'Elegir archivo'; padding: 0 10px 0 0; color: var(--text-d); font-size: 0.78rem; }
+    .sanc-btn { padding: 8px 16px; background: var(--accent); color: #fff; border: none; font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s; white-space: nowrap; }
+    .sanc-btn:hover { background: var(--acch); }
+    .sanc-btn:disabled { opacity: .5; cursor: default; }
+    .sanc-status { font-size: 0.75rem; margin-top: 8px; min-height: 1.1em; color: var(--text-d); }
+    .sanc-status.ok  { color: #4ade80; }
+    .sanc-status.err { color: #e05050; }
+    .sanc-section-title { font-size: 0.68rem; font-weight: 700; color: var(--text-d); letter-spacing: 2.5px; text-transform: uppercase; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
     @media (max-width: 700px) {
       .admin-content { padding: 16px; }
       .topbar { padding: 0 16px; }
@@ -202,6 +225,7 @@
       <div class="tab-nav">
         <button class="tab-btn active" id="tab-articulos" onclick="_switchTab('articulos')">Artículos</button>
         <button class="tab-btn" id="tab-consultas" onclick="_switchTab('consultas')">Consultas <span class="tab-badge" id="consultas-badge" style="display:none"></span></button>
+        <button class="tab-btn" id="tab-compliance" onclick="_switchTab('compliance')">Listas de Sanciones</button>
       </div>
 
       <!-- LISTA DE ARTÍCULOS -->
@@ -325,6 +349,96 @@
         </table>
       </div>
 
+      <!-- LISTAS DE SANCIONES -->
+      <div id="vista-compliance" style="display:none">
+
+        <p class="sanc-section-title">Fuentes OFAC — EE.UU. (Office of Foreign Assets Control)</p>
+        <p style="font-size:0.8rem;color:var(--text-d);margin-bottom:18px">
+          Descargá los archivos XML desde los links de abajo, luego subílos aquí.
+          Cloud Run los cargará automáticamente desde Storage.
+        </p>
+
+        <div class="sanc-grid">
+
+          <!-- SDN -->
+          <div class="sanc-card">
+            <div class="sanc-card-title">SDN List</div>
+            <div class="sanc-card-sub">Specially Designated Nationals</div>
+            <div class="sanc-source">
+              Descargar XML: <a href="https://www.treasury.gov/ofac/downloads/sdn.xml" target="_blank" rel="noopener">treasury.gov/ofac/downloads/sdn.xml</a>
+            </div>
+            <div class="sanc-last" id="sanc-last-sdn">Último upload: <span class="none">—</span></div>
+            <div class="sanc-file-row">
+              <input type="file" accept=".xml" id="sanc-file-sdn" class="sanc-file-input" aria-label="Archivo SDN XML" />
+              <button class="sanc-btn" id="sanc-btn-sdn" onclick="_subirLista('sdn','ofac/sdn.xml','sanc-file-sdn','sanc-btn-sdn','sanc-status-sdn','sanc-last-sdn')">Subir</button>
+            </div>
+            <div class="sanc-status" id="sanc-status-sdn"></div>
+          </div>
+
+          <!-- Consolidated -->
+          <div class="sanc-card">
+            <div class="sanc-card-title">Consolidated List</div>
+            <div class="sanc-card-sub">Consolidated Sanctions List</div>
+            <div class="sanc-source">
+              Descargar XML: <a href="https://www.treasury.gov/ofac/downloads/consolidated/consolidated.xml" target="_blank" rel="noopener">treasury.gov/ofac/downloads/consolidated/consolidated.xml</a>
+            </div>
+            <div class="sanc-last" id="sanc-last-cons">Último upload: <span class="none">—</span></div>
+            <div class="sanc-file-row">
+              <input type="file" accept=".xml" id="sanc-file-cons" class="sanc-file-input" aria-label="Archivo Consolidated XML" />
+              <button class="sanc-btn" id="sanc-btn-cons" onclick="_subirLista('cons','ofac/cons.xml','sanc-file-cons','sanc-btn-cons','sanc-status-cons','sanc-last-cons')">Subir</button>
+            </div>
+            <div class="sanc-status" id="sanc-status-cons"></div>
+          </div>
+
+        </div>
+
+        <p class="sanc-section-title" style="margin-top:8px">ONU — Consejo de Seguridad (resolución 1267 y conexas)</p>
+        <p style="font-size:0.8rem;color:var(--text-d);margin-bottom:18px">
+          Lista consolidada de personas y entidades sujetas a medidas del Consejo de Seguridad de la ONU.
+        </p>
+
+        <div class="sanc-grid">
+
+          <!-- ONU Consolidated -->
+          <div class="sanc-card">
+            <div class="sanc-card-title">ONU Consolidated</div>
+            <div class="sanc-card-sub">UN Security Council Sanctions List</div>
+            <div class="sanc-source">
+              Descargar XML: <a href="https://scsanctions.un.org/resources/xml/en/consolidated.xml" target="_blank" rel="noopener">scsanctions.un.org/resources/xml/en/consolidated.xml</a>
+            </div>
+            <div class="sanc-last" id="sanc-last-un">Último upload: <span class="none">—</span></div>
+            <div class="sanc-file-row">
+              <input type="file" accept=".xml" id="sanc-file-un" class="sanc-file-input" aria-label="Archivo ONU XML" />
+              <button class="sanc-btn" id="sanc-btn-un" onclick="_subirLista('un','ofac/un_cons.xml','sanc-file-un','sanc-btn-un','sanc-status-un','sanc-last-un')">Subir</button>
+            </div>
+            <div class="sanc-status" id="sanc-status-un"></div>
+          </div>
+
+        </div>
+
+        <p class="sanc-section-title" style="margin-top:8px">Configuración del Sistema</p>
+
+        <div class="sanc-grid">
+
+          <!-- Matriz de Riesgo -->
+          <div class="sanc-card">
+            <div class="sanc-card-title">Matriz de Riesgo SENACLAFT</div>
+            <div class="sanc-card-sub">matriz_riesgo_config.json</div>
+            <div class="sanc-source" style="color:var(--text-d)">
+              Subí una versión actualizada del archivo de configuración de la matriz (ponderaciones, umbrales, tablas de países y actividades).
+            </div>
+            <div class="sanc-last" id="sanc-last-matriz">Último upload: <span class="none">—</span></div>
+            <div class="sanc-file-row">
+              <input type="file" accept=".json" id="sanc-file-matriz" class="sanc-file-input" aria-label="Archivo matriz_riesgo_config.json" />
+              <button class="sanc-btn" id="sanc-btn-matriz" onclick="_subirLista('matriz','config/matriz_riesgo_config.json','sanc-file-matriz','sanc-btn-matriz','sanc-status-matriz','sanc-last-matriz')">Subir</button>
+            </div>
+            <div class="sanc-status" id="sanc-status-matriz"></div>
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
   </div>
 
@@ -338,6 +452,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script>
     firebase.initializeApp({
       apiKey:            "AIzaSyCErA2F20Y7NJzdxX3phQZ6baXQvT8E27A",
@@ -347,8 +462,9 @@
       messagingSenderId: "574213027867",
       appId:             "1:574213027867:web:e5845f4d8a9d86adcea0be",
     });
-    var db   = firebase.firestore();
-    var auth = firebase.auth();
+    var db      = firebase.firestore();
+    var auth    = firebase.auth();
+    var storage = firebase.storage();
 
     var ADMIN_EMAIL = "rafaelnunezinzaurralde@gmail.com";
     var _iaUnsub    = null;
@@ -680,13 +796,76 @@
 
     // ── TABS ────────────────────────────────────────────────────────────────────
     function _switchTab(tab) {
-      var isArticulos = tab === "articulos";
-      document.getElementById("tab-articulos").className   = "tab-btn" + (isArticulos ? " active" : "");
-      document.getElementById("tab-consultas").className   = "tab-btn" + (!isArticulos ? " active" : "");
-      document.getElementById("vista-lista").style.display    = isArticulos ? "block" : "none";
-      document.getElementById("vista-editor").style.display   = "none";
-      document.getElementById("vista-consultas").style.display = isArticulos ? "none" : "block";
-      if (!isArticulos) _cargarConsultas();
+      ["articulos","consultas","compliance"].forEach(function(t) {
+        document.getElementById("tab-" + t).className = "tab-btn" + (t === tab ? " active" : "");
+      });
+      document.getElementById("vista-lista").style.display       = tab === "articulos"  ? "block" : "none";
+      document.getElementById("vista-editor").style.display      = "none";
+      document.getElementById("vista-consultas").style.display   = tab === "consultas"  ? "block" : "none";
+      document.getElementById("vista-compliance").style.display  = tab === "compliance" ? "block" : "none";
+      if (tab === "consultas")  _cargarConsultas();
+      if (tab === "compliance") _cargarMetaListas();
+    }
+
+    // ── LISTAS DE SANCIONES ────────────────────────────────────────────────────
+
+    function _cargarMetaListas() {
+      db.collection("sistema").doc("listas_sanciones").get()
+        .then(function(doc) {
+          if (!doc.exists) return;
+          var d = doc.data();
+          var keys = { sdn: "sanc-last-sdn", cons: "sanc-last-cons", un: "sanc-last-un", matriz: "sanc-last-matriz" };
+          Object.keys(keys).forEach(function(k) {
+            if (d[k + "_actualizado_el"]) {
+              var fecha = new Date(d[k + "_actualizado_el"].seconds * 1000).toLocaleString("es-UY");
+              var el = document.getElementById(keys[k]);
+              if (el) el.innerHTML = "Último upload: <span class='ok'>" + fecha + "</span>";
+            }
+          });
+        })
+        .catch(function() {});
+    }
+
+    function _subirLista(key, storagePath, fileInputId, btnId, statusId, lastId) {
+      var file     = document.getElementById(fileInputId).files[0];
+      var statusEl = document.getElementById(statusId);
+      var btnEl    = document.getElementById(btnId);
+
+      if (!file) {
+        statusEl.className   = "sanc-status err";
+        statusEl.textContent = "Seleccioná un archivo primero.";
+        return;
+      }
+
+      btnEl.disabled    = true;
+      btnEl.textContent = "Subiendo...";
+      statusEl.className   = "sanc-status";
+      statusEl.textContent = "Subiendo a Cloud Storage...";
+
+      var ref = storage.ref(storagePath);
+      var contentType = file.name.endsWith(".json") ? "application/json" : "application/xml";
+
+      ref.put(file, { contentType: contentType })
+        .then(function() {
+          return db.collection("sistema").doc("listas_sanciones").set(
+            { [key + "_actualizado_el"]: firebase.firestore.FieldValue.serverTimestamp() },
+            { merge: true }
+          );
+        })
+        .then(function() {
+          btnEl.disabled    = false;
+          btnEl.textContent = "Subir";
+          statusEl.className   = "sanc-status ok";
+          statusEl.textContent = "✓ Subido correctamente. Cloud Run lo usará en el próximo screening.";
+          var lastEl = document.getElementById(lastId);
+          if (lastEl) lastEl.innerHTML = "Último upload: <span class='ok'>" + new Date().toLocaleString("es-UY") + "</span>";
+        })
+        .catch(function(e) {
+          btnEl.disabled    = false;
+          btnEl.textContent = "Subir";
+          statusEl.className   = "sanc-status err";
+          statusEl.textContent = "Error: " + e.message;
+        });
     }
 
     // ── CONSULTAS ───────────────────────────────────────────────────────────────

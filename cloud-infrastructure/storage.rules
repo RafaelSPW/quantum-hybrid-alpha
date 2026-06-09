@@ -56,6 +56,37 @@ service firebase.storage {
                    && request.resource.size <= 25 * 1024 * 1024;
     }
 
+    // ── Fondos de origen — módulo SENACLAFT Ley 19.574 ───────────────────────
+    // Path: users/{uid}/fondos/{filename}
+    // PDFs, imágenes de documentos de origen de fondos (≤ 10 MB)
+
+    match /users/{uid}/fondos/{filename} {
+      allow read:  if esAutenticado() && esPropietario(uid);
+      allow write: if esAutenticado()
+                   && esPropietario(uid)
+                   && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    // ── Listas de sanciones — escritura solo para administrador ───────────────
+    // Path: ofac/{file}    — XMLs de OFAC (SDN, Consolidated) y ONU
+    // Path: config/{file}  — Archivos de configuración (matriz_riesgo_config.json)
+    // Cloud Run usa Firebase Admin SDK (bypassa estas reglas para lectura).
+
+    function esAdmin() {
+      return esAutenticado()
+          && request.auth.token.email == "rafaelnunezinzaurralde@gmail.com";
+    }
+
+    match /ofac/{file} {
+      allow read:  if esAdmin();
+      allow write: if esAdmin() && request.resource.size <= 60 * 1024 * 1024;
+    }
+
+    match /config/{file} {
+      allow read:  if esAdmin();
+      allow write: if esAdmin() && request.resource.size <= 5 * 1024 * 1024;
+    }
+
     // ── Bloqueo explícito de todo lo demás ─────────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;
