@@ -174,17 +174,17 @@
           <form onsubmit="enviarSenaclaftRiesgo(event)">
             <div class="form-row">
               <div class="form-group">
-                <label>N° Cliente (opcional)</label>
+                <label for="sr-numero">N° Cliente (opcional)</label>
                 <input id="sr-numero" type="text" placeholder="Ej: CLI-001" />
               </div>
               <div class="form-group">
-                <label>Nombre Cliente (opcional)</label>
+                <label for="sr-nombre">Nombre Cliente (opcional)</label>
                 <input id="sr-nombre" type="text" placeholder="Nombre completo" />
               </div>
             </div>
 
             <div class="form-group">
-              <label>Actividad Económica <span style="color:#b02020">*</span></label>
+              <label for="sr-actividad">Actividad Económica <span style="color:#b02020">*</span></label>
               <input id="sr-actividad" type="text" list="actividades-list" placeholder="Ej: JUBILADOS" required />
               <datalist id="actividades-list">
                 <option value="ACT.RELACIONADA CON LA SALUD">
@@ -294,14 +294,14 @@
 
             <div class="form-row">
               <div class="form-group">
-                <label>Calidad PEP</label>
+                <label for="sr-pep">Calidad PEP</label>
                 <select id="sr-pep">
                   <option value="NO">NO</option>
                   <option value="SI">SI</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Opera cuenta terceros</label>
+                <label for="sr-terceros">Opera cuenta terceros</label>
                 <select id="sr-terceros">
                   <option value="NO">NO</option>
                   <option value="SI">SI</option>
@@ -311,14 +311,14 @@
 
             <div class="form-row">
               <div class="form-group">
-                <label>Monto significativo</label>
+                <label for="sr-monto">Monto significativo</label>
                 <select id="sr-monto">
                   <option value="NO">NO</option>
                   <option value="SI">SI</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Productos/Servicios especiales</label>
+                <label for="sr-productos">Productos/Servicios especiales</label>
                 <select id="sr-productos">
                   <option value="NO">NO</option>
                   <option value="SI">SI</option>
@@ -327,12 +327,12 @@
             </div>
 
             <div class="form-group">
-              <label>País de Residencia <span style="color:#b02020">*</span></label>
+              <label for="sr-pais-res">País de Residencia <span style="color:#b02020">*</span></label>
               <input id="sr-pais-res" type="text" list="paises-list" placeholder="Ej: URUGUAY" required />
             </div>
 
             <div class="form-group">
-              <label>País de Actividad Comercial</label>
+              <label for="sr-pais-act">País de Actividad Comercial</label>
               <input id="sr-pais-act" type="text" list="paises-list" placeholder="Ej: URUGUAY" />
             </div>
 
@@ -375,13 +375,13 @@
 
           <form onsubmit="enviarSenaclaftOfac(event)">
             <div class="form-group">
-              <label>Nombre del sujeto <span style="color:#b02020">*</span></label>
+              <label for="so-nombre">Nombre del sujeto <span style="color:#b02020">*</span></label>
               <input id="so-nombre" type="text" placeholder="Nombre completo — persona física o jurídica" required />
               <div class="hint">Se generan variaciones de nombre (orden invertido, parcial) para mejorar la detección.</div>
             </div>
 
             <div class="form-group">
-              <label>Umbral de similitud: <strong id="so-umbral-val">85</strong>%</label>
+              <label for="so-umbral">Umbral de similitud: <strong id="so-umbral-val">85</strong>%</label>
               <input id="so-umbral" type="range" min="70" max="99" value="85" step="1"
                 oninput="document.getElementById('so-umbral-val').textContent=this.value"
                 style="width:100%;margin-top:6px" />
@@ -424,35 +424,35 @@
           <form onsubmit="enviarSenaclaftFondos(event)">
             <div class="form-row">
               <div class="form-group">
-                <label>N° Cliente (opcional)</label>
+                <label for="sf-numero">N° Cliente (opcional)</label>
                 <input id="sf-numero" type="text" placeholder="Ej: CLI-001" />
               </div>
               <div class="form-group">
-                <label>Nombre Cliente (opcional)</label>
+                <label for="sf-nombre">Nombre Cliente (opcional)</label>
                 <input id="sf-nombre" type="text" placeholder="Nombre completo" />
               </div>
             </div>
 
             <div class="form-group">
-              <label>Documento financiero <span style="color:#b02020">*</span></label>
+              <label for="sf-archivo">Documento financiero <span style="color:#b02020">*</span></label>
               <input id="sf-archivo" type="file" accept=".pdf,.jpg,.jpeg,.png" required style="padding:6px 8px;font-size:0.85rem" />
               <div class="hint">PDF, JPG o PNG. Extracto bancario, balance, declaración jurada de origen de fondos.</div>
             </div>
 
             <div class="form-group">
-              <label>Actividad económica declarada</label>
+              <label for="sf-actividad">Actividad económica declarada</label>
               <input id="sf-actividad" type="text" list="actividades-list" placeholder="Ej: JUBILADOS" />
               <div class="hint">Actividad SENACLAFT del cliente — referencia para evaluar congruencia.</div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label>Ingresos anuales declarados (USD)</label>
+                <label for="sf-ingresos">Ingresos anuales declarados (USD)</label>
                 <input id="sf-ingresos" type="number" min="0" step="100" placeholder="Ej: 24000" />
                 <div class="hint">Ingreso anual bruto declarado.</div>
               </div>
               <div class="form-group">
-                <label>Patrimonio declarado (USD)</label>
+                <label for="sf-patrimonio">Patrimonio declarado (USD)</label>
                 <input id="sf-patrimonio" type="number" min="0" step="1000" placeholder="Ej: 80000" />
               </div>
             </div>
