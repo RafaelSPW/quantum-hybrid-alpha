@@ -73,8 +73,11 @@ service firebase.storage {
     // Cloud Run usa Firebase Admin SDK (bypassa estas reglas para lectura).
 
     function esAdmin() {
+      // Doble check: email (preferido) + UID como fallback
+      // UID visible en logs de créditos del sistema.
       return esAutenticado()
-          && request.auth.token.email == "rafaelnunezinzaurralde@gmail.com";
+          && (request.auth.token.email == "rafaelnunezinzaurralde@gmail.com"
+              || request.auth.uid == "lVkD2tQbe7Y8FZuCudrgRZrUyOG2");
     }
 
     match /ofac/{file} {
