@@ -72,22 +72,15 @@ service firebase.storage {
     // Path: config/{file}  — Archivos de configuración (matriz_riesgo_config.json)
     // Cloud Run usa Firebase Admin SDK (bypassa estas reglas para lectura).
 
-    function esAdmin() {
-      // Doble check: email (preferido) + UID como fallback
-      // UID visible en logs de créditos del sistema.
-      return esAutenticado()
-          && (request.auth.token.email == "rafaelnunezinzaurralde@gmail.com"
-              || request.auth.uid == "lVkD2tQbe7Y8FZuCudrgRZrUyOG2");
-    }
-
+    // UID del administrador: lVkD2tQbe7Y8FZuCudrgRZrUyOG2
     match /ofac/{file} {
-      allow read:  if esAdmin();
-      allow write: if esAdmin() && request.resource.size <= 60 * 1024 * 1024;
+      allow read, write: if request.auth != null
+                         && request.auth.uid == "lVkD2tQbe7Y8FZuCudrgRZrUyOG2";
     }
 
     match /config/{file} {
-      allow read:  if esAdmin();
-      allow write: if esAdmin() && request.resource.size <= 5 * 1024 * 1024;
+      allow read, write: if request.auth != null
+                         && request.auth.uid == "lVkD2tQbe7Y8FZuCudrgRZrUyOG2";
     }
 
     // ── Bloqueo explícito de todo lo demás ─────────────────────────────────────
