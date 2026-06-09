@@ -2973,6 +2973,12 @@ auth.onAuthStateChanged(function(user) {
     }
 
     iniciarEscuchaCreditos(user);
+    // Si la tab Legajos está activa al momento del login (ej. logout→login sin recargar),
+    // reiniciar el listener con el UID del nuevo usuario.
+    if (document.getElementById("tab-legajos") && document.getElementById("tab-legajos").classList.contains("active")) {
+      window._lgjUnsub = null;
+      if (typeof iniciarLegajosTab === "function") iniciarLegajosTab();
+    }
   } else {
     if (loginBtn)    loginBtn.style.display    = "inline-block";
     if (logoutBtn)   logoutBtn.style.display   = "none";
@@ -2980,6 +2986,15 @@ auth.onAuthStateChanged(function(user) {
     if (userInfo)    userInfo.textContent       = "";
     if (creditBadge) creditBadge.style.display = "none";
     _creditos = null;
+    // Destruir listener + limpiar UI para que el próximo usuario no vea datos del anterior
+    if (window._lgjUnsub) { window._lgjUnsub(); window._lgjUnsub = null; }
+    window._lgjDocs = {};
+    var _lgjL = document.getElementById("lgj-lista");
+    if (_lgjL) _lgjL.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:0.9rem">Inicia sesion para ver tus legajos de cumplimiento.</div>';
+    var _lgjDet = document.getElementById("lgj-detalle");
+    if (_lgjDet) { _lgjDet.style.display = "none"; _lgjDet.innerHTML = ""; }
+    var _lgjWrap = document.getElementById("lgj-lista-wrap");
+    if (_lgjWrap) _lgjWrap.style.display = "block";
   }
 });
 
@@ -3113,7 +3128,9 @@ async function enviarSenaclaftOfac(event) {
   if (!nombre) { alert("El nombre del sujeto es obligatorio."); return; }
 
   var estado = document.getElementById("so-estado");
-  if (estado) { estado.className = "estado-msg activo"; estado.innerHTML = '<span class="ahc-spinner"></span>Descargando listas OFAC y ejecutando screening...'; }
+  var soBtn  = document.querySelector("#tab-ofac .btn-submit");
+  if (soBtn)  { soBtn.disabled = true; soBtn.textContent = "Procesando..."; }
+  if (estado) { estado.className = "estado-msg activo"; estado.innerHTML = '<span class="ahc-spinner"></span>Descargando listas oficiales OFAC... puede tardar hasta 30s en la primera consulta.'; }
 
   var ref = await db.collection("tareas_pendientes").add({
     tipo:      "senaclaft_ofac",
@@ -3133,10 +3150,14 @@ async function enviarSenaclaftOfac(event) {
     if (d.status === "COMPLETADO") {
       if (_unsubSenaclaftOfac) { _unsubSenaclaftOfac(); _unsubSenaclaftOfac = null; }
       if (estado) { estado.className = "estado-msg"; estado.textContent = ""; }
+      var soBtnC = document.querySelector("#tab-ofac .btn-submit");
+      if (soBtnC) { soBtnC.disabled = false; soBtnC.textContent = "Ejecutar Screening OFAC"; }
       renderizarSenaclaftOfac(d.resultado, nombre);
     } else if (d.status === "ERROR") {
       if (_unsubSenaclaftOfac) { _unsubSenaclaftOfac(); _unsubSenaclaftOfac = null; }
       if (estado) { estado.style.color = "#b02020"; estado.textContent = "Error: " + (d.error || "Error desconocido"); }
+      var soBtnE = document.querySelector("#tab-ofac .btn-submit");
+      if (soBtnE) { soBtnE.disabled = false; soBtnE.textContent = "Ejecutar Screening OFAC"; }
     }
   });
 }

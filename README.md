@@ -32,20 +32,24 @@ quantum-processor   min-instances=1 · siempre activo · 1 GB RAM
   └── fuentes_oficiales_por_pais.py  Mapeo de fuentes regulatorias por país
   database/
   └── local_cache.py               SQLite — caché de reportes KYC
-  sanctions/                       Motor KYC/AML SENACLAFT (Módulos 1–7)
-  ├── ofac_loader.py               Descarga listas OFAC SDN + Consolidada
-  ├── matcher.py                   Fuzzy matching con rapidfuzz (token_set_ratio)
+  sanctions/                       Motor KYC/AML SENACLAFT (Módulos 1–8)
+  ├── ofac_loader.py               Descarga listas OFAC SDN + Consolidada (12h cache)
+  ├── matcher.py                   Fuzzy matching con rapidfuzz (token_set_ratio NFKD)
   ├── pep_screener.py              Screening PEP + medios adversos (DuckDuckGo + Wikipedia)
   ├── risk_matrix.py               Matriz de riesgo 7 factores (Ley 19.574)
   ├── suspicious_activity.py       Detección señales: smurfing, crypto DDI, rechazo info
-  ├── funds_analyzer.py            Análisis origen de fondos dos fases
+  ├── funds_analyzer.py            Análisis origen de fondos dos fases + consistencia perfil
   ├── legajo_exporter.py           Exportación PDF con hash SHA-256 + audit trail
-  └── audit_log.py                 Log append-only con cadena Merkle (JSONL)
+  ├── audit_log.py                 Log append-only con cadena Merkle (JSONL)
+  ├── validacion_cruzada.py        Legajo Unificado: cruce screening+riesgo+fondos
+  ├── crypto.py                    Envelope encryption AES-256-GCM + KMS (Ley 18.331)
+  └── vigencia_config.json         Vigencia por riesgo + retención configurable
 
 FIRESTORE (colecciones)
 ──────────────────────────────────────────────────────────────
 tareas_pendientes        Tareas creadas por frontend → procesadas por Cloud Run
 usuarios                 Créditos, plan, suscripción PayPal del usuario
+legajos                  Legajos de Cumplimiento unificados (append-only, owner_uid)
 pagos_pendientes         Pagos PayPal pendientes de verificación
 pagos                    Historial de pagos acreditados
 leads_institucionales    Solicitudes tier Enterprise Dedicado
@@ -493,6 +497,29 @@ El PDF incluye sección CONFIDENCIAL separada (alertas internas) que no puede se
 
 ## Registro de cambios
 
+### 9 Junio 2026 — Legajos tab + correcciones UI SENACLAFT + deploy Cloud Run rev 00005
+
+**Cloud Run:** revision `quantum-processor-00005-6mr` activa. Agrega soporte completo de `senaclaft_legajo` con cifrado KMS y check IDOR.
+
+**Frontend `senaclaft.html`:**
+- Tab "Legajos" con lista paginada (B1) y vista de detalle (B2) via Firestore `onSnapshot()`
+- Datos sensibles cifrados: nunca se renderiza el ciphertext en pantalla; se muestra "Disponibles bajo solicitud autorizada"
+- Badges de vigencia: verde / amber (< 30 días) / rojo (vencido — re-evaluar)
+- Estado OFAC: botón deshabilitado + spinner "Descargando listas oficiales OFAC..." durante procesamiento
+- Corregido: "tiempo real" → "fuentes oficiales (actualización periódica, caché 12h)" (era overclaim)
+- Corregido: URL fuente OFAC → `sanctionslistservice.ofac.treas.gov` (Tesoro de los Estados Unidos)
+- Fix listener restart: logout limpia UI; login reactiva el listener si el tab está activo
+
+**Firestore:**
+- Índice compuesto `legajos` desplegado: `owner_uid ASC + creado_en DESC` (requerido por la query del tab)
+- `requirements.txt`: agregado `cryptography>=42.0.0` y `google-cloud-kms>=3.0.0`
+
+**Verificado en producción:**
+- KMS envelope encryption funcionando end-to-end (`datos_sensibles_cifrados` con `algoritmo`, `ciphertext_b64`, `encrypted_dek_b64`, `nonce_b64`, `kek_version`)
+- IDOR bloqueado: tarea con IDs de otro usuario retorna "Acceso denegado: IDOR rechazado"
+
+---
+
 ### Junio 2026 — Deploy completo + módulo sanctions SENACLAFT
 
 **Deploy completado:**
@@ -551,6 +578,12 @@ El PDF incluye sección CONFIDENCIAL separada (alertas internas) que no puede se
 | Diseñador de Estrategias (por sesión) | 75 |
 | Análisis de Activo | 30 |
 | Auditoría de Cartera | 75 |
+| SENACLAFT — Evaluación de Riesgo | 20 |
+| SENACLAFT — Screening OFAC/PEP | 40 |
+| SENACLAFT — Análisis de Fondos | 30 |
+| SENACLAFT — Legajo Unificado | 10 |
+
+> **Trial (150 cr):** alcanza para 2 ciclos completos riesgo + OFAC (20 + 40 = 60 cr c/u) con créditos de sobra para análisis de fondos y legajo.
 
 ---
 
@@ -621,6 +654,182 @@ gcloud run services logs tail quantum-processor --region=us-central1 --project q
 | `PAYPAL_CLIENT_SECRET` | PayPal Developer → Apps & Credentials |
 | `FIREBASE_PROJECT_ID` | `agenteahc` |
 | `FIREBASE_STORAGE_BUCKET` | `agenteahc.firebasestorage.app` |
+| `KMS_KEY_NAME` | Nombre completo del recurso KMS para cifrado de datos sensibles |
+
+---
+
+## Módulo 01-E-2 — Legajo de Cumplimiento Unificado (`senaclaft_legajo`)
+
+**Créditos:** 10 (agrega resultados de tareas ya pagadas)
+
+Cruza los resultados del screening OFAC/PEP (`senaclaft_ofac`) y la evaluación de riesgo
+(`senaclaft_riesgo`) en un único documento auditoriable. El análisis de fondos se incluye
+opcionalmente, solo si el investigador confirmó los montos extraídos.
+
+### Principio rector
+
+> El sistema sugiere y documenta. La determinación final es exclusiva del oficial de cumplimiento humano.
+
+Todos los outputs incluyen:
+- `decision_oficial_cumplimiento: null` — siempre null, sin excepción
+- `requiere_revision_humana: true` — siempre true, sin excepción
+- `nota_legal` — texto legal transversal en cada evaluación
+
+### Input (Firestore task)
+
+```json
+{
+  "tipo": "senaclaft_legajo",
+  "uid": "firebase_uid_del_usuario",
+  "id_cliente": "CLIENTE-001",
+  "screening_task_id": "<id de la tarea senaclaft_ofac completada>",
+  "riesgo_task_id": "<id de la tarea senaclaft_riesgo completada>",
+  "fondos_task_id": "<id de tarea de fondos confirmada — OPCIONAL>"
+}
+```
+
+**Seguridad IDOR:** el backend verifica que `screening_task_id`, `riesgo_task_id` y
+`fondos_task_id` pertenezcan todos al mismo `uid` de la tarea. Si alguno pertenece a
+otro usuario, la tarea se rechaza y no se construye el legajo.
+
+### Output (campo `resultado` en la tarea + documento en `legajos/`)
+
+```json
+{
+  "legajo_id": "abc123...",
+  "id_evaluacion": "uuid-v4",
+  "estado": "SIN_ALERTAS_AUTOMATICAS | ALERTAS_PENDIENTES_REVISION",
+  "vigencia_hasta": "2026-12-09T00:00:00+00:00"
+}
+```
+
+El documento completo se escribe en `legajos/{legajoId}` con `owner_uid` para
+aislamiento multi-tenant.
+
+### Vigencia por nivel de riesgo (configurable en `vigencia_config.json`)
+
+| Nivel | Vigencia default | Significado |
+|-------|-----------------|-------------|
+| Alto | 180 días | Re-screenear en 6 meses (debida diligencia intensificada, SENACLAFT) |
+| Moderado | 365 días | Re-screenear en 12 meses |
+| Bajo | 730 días | Re-screenear en 24 meses |
+
+**La vigencia vencida significa "re-screenear", no "dar de baja al cliente".**
+
+### Retención y purga
+
+La retención de legajos se rige por `retencion_anos` (default: 5 años, SENACLAFT).
+`purgar_legajos_expirados(db, dry_run=True)` elimina legajos cuyo `creado_en` supera
+el período. La purga nunca usa `vigencia_hasta` como criterio de eliminación.
+
+---
+
+## Aislamiento Multi-tenant
+
+Cada documento en Firestore lleva `owner_uid` asignado por el backend (Admin SDK)
+a partir del `uid` de la tarea, que las Security Rules ya verificaron al momento
+de creación.
+
+### Firestore Security Rules — `legajos`
+
+```javascript
+match /legajos/{legajoId} {
+  allow read:  if request.auth != null
+               && request.auth.uid == resource.data.owner_uid;
+  allow write: if false;  // solo Admin SDK escribe
+}
+```
+
+El frontend puede consultar el historial de evaluaciones de un cliente:
+
+```javascript
+db.collection('legajos')
+  .where('owner_uid', '==', currentUser.uid)
+  .where('id_cliente', '==', clienteId)
+  .orderBy('timestamp_evaluacion', 'desc')
+  .limit(50)
+```
+
+Las Security Rules garantizan que la query solo retorna los legajos del usuario autenticado.
+
+---
+
+## Cifrado de datos sensibles (Ley 18.331)
+
+Los montos confirmados del análisis de fondos se cifran con **AES-256-GCM**
+usando envelope encryption: Google Cloud KMS gestiona la KEK; la DEK se genera
+aleatoriamente por evaluación y se cifra con KMS.
+
+El **AAD** (Additional Authenticated Data) está atado a `{id_evaluacion}|{owner_uid}`,
+lo que impide mover un ciphertext a otro legajo o usuario (AESGCM lanza `InvalidTag`
+si el AAD no coincide).
+
+### Setup KMS (una vez por proyecto)
+
+```bash
+# Crear key ring y clave
+gcloud kms keyrings create ahc-compliance \
+  --location=us-central1 --project=quantumaits
+
+gcloud kms keys create sensitive-data \
+  --location=us-central1 \
+  --keyring=ahc-compliance \
+  --purpose=encryption \
+  --project=quantumaits
+
+# Dar acceso al service account del Cloud Run
+gcloud kms keys add-iam-policy-binding sensitive-data \
+  --location=us-central1 \
+  --keyring=ahc-compliance \
+  --member="serviceAccount:SERVICE_ACCOUNT@quantumaits.iam.gserviceaccount.com" \
+  --role="roles/cloudkms.cryptoKeyEncrypterDecrypter" \
+  --project=quantumaits
+```
+
+### CMEK para Cloud Storage
+
+```bash
+gcloud storage buckets update gs://agenteahc.firebasestorage.app \
+  --default-encryption-key=projects/quantumaits/locations/us-central1/keyRings/ahc-compliance/cryptoKeys/sensitive-data
+```
+
+### Variable de entorno
+
+```powershell
+# Agregar al YAML de Cloud Run env vars:
+KMS_KEY_NAME: "projects/quantumaits/locations/us-central1/keyRings/ahc-compliance/cryptoKeys/sensitive-data"
+```
+
+---
+
+## Tests
+
+### Python (pytest / unittest)
+
+```bash
+cd local-infrastructure
+python -m pytest sanctions/tests/ -v
+```
+
+| Archivo | Casos |
+|---------|-------|
+| `test_validacion_cruzada.py` | Sin alertas, con alertas, fondos no confirmados, IDOR |
+| `test_crypto.py` | Round-trip AES-GCM, AAD binding, KMSNotConfiguredError |
+| `test_aislamiento_vigencia.py` | Vigencia por riesgo, purga por retención, owner_uid |
+
+### Firestore Security Rules (Firebase Emulator)
+
+```bash
+# 1. Iniciar emulator (desde cloud-infrastructure/)
+firebase emulators:start --only firestore --project ahc-compliance-test
+
+# 2. En otra terminal
+cd cloud-infrastructure/tests/rules
+npm install
+npm test
+```
+
+Prueba que usuario B no puede leer el legajo de usuario A contra las rules reales.
 
 ---
 
@@ -688,6 +897,7 @@ quantum-compliance-saas/
 │       ├── index.html              Landing / login
 │       ├── compliance-hub.html     Hub de módulos de compliance
 │       ├── compliance.html         Análisis KYC/AML
+│       ├── senaclaft.html          Módulos SENACLAFT (riesgo + OFAC + legajos)
 │       ├── forensic.html           Análisis forense
 │       ├── contracts.html          Auditoría de contratos
 │       ├── legal-chat.html         Chat de guía regulatoria
@@ -739,4 +949,5 @@ quantum-compliance-saas/
             ├── audit.jsonl         ← generado en runtime, no subir al repo
             ├── *.xml               ← listas OFAC cacheadas, no subir al repo
             └── risk_config_history/  Historial de versiones de la matriz
+
 ```

@@ -7,6 +7,14 @@
         { "fieldPath": "publicado",  "order": "ASCENDING"  },
         { "fieldPath": "creado_en",  "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "legajos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING"  },
+        { "fieldPath": "creado_en", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
