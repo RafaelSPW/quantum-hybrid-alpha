@@ -10,3 +10,6 @@ duckduckgo-search>=6.0
 pdfplumber>=0.11
 reportlab>=4.0
 pyyaml>=6.0
+# Cifrado de datos sensibles (Ley 18.331) + KMS
+cryptography>=42.0.0
+google-cloud-kms>=3.0.0

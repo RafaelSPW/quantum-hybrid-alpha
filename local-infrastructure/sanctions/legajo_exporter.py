@@ -54,7 +54,7 @@ COLOR_FONDO_CONF  = colors.HexColor("#fce4ec")
 @dataclass
 class LegajoDatos:
     """
-    Agrupa toda la evidencia del proceso KYC/AML para generar el legajo.
+    Agrupa toda la evidencia del proceso KYC/AML para generar el legajo PDF.
     declaracion_fiscal_presente: MÓDULO 4 — el legajo no se completa sin este documento.
     """
     nombre_cliente:               str
@@ -63,6 +63,14 @@ class LegajoDatos:
     screening_pep:                dict[str, Any]
     evaluacion_riesgo:            dict[str, Any]
     investigador_id:              str
+    # Campos de legajo unificado (con defaults para compatibilidad hacia atrás)
+    id_cliente:                    str = ""
+    estado:                        str = "SIN_ALERTAS_AUTOMATICAS"
+    decision_oficial_cumplimiento: Any = None
+    nota_legal:                    str = ""
+    vigencia_hasta:                str = ""
+    validacion_cruzada:            dict[str, Any] | None = None
+    # Campos opcionales originales
     declaracion_fiscal_presente:  bool = False
     declaracion_fiscal_archivo:   str | None = None
     analisis_fondos:              dict[str, Any] | None = None
@@ -74,11 +82,13 @@ class LegajoDatos:
 class ResultadoExportacion:
     pdf_bytes:    bytes
     legajo_id:    str
-    data_hash:    str            # SHA-256 del JSON canónico de los datos
+    data_hash:    str
     timestamp:    str
-    completo:     bool           # False si falta declaración fiscal u otros requeridos
-    faltantes:    list[str]      # items que impiden marcar el legajo como completo
-    audit_hash:   str            # hash del registro en audit_log
+    completo:     bool
+    faltantes:    list[str]
+    audit_hash:   str
+    id_cliente:   str = ""
+    estado:       str = "SIN_ALERTAS_AUTOMATICAS"
 
 
 # ─── Helpers de contenido ─────────────────────────────────────────────────────
@@ -92,6 +102,9 @@ def _hash_datos(datos: LegajoDatos) -> str:
     """SHA-256 del JSON canónico de los datos del legajo."""
     payload = {
         "nombre_cliente":              datos.nombre_cliente,
+        "id_cliente":                  datos.id_cliente,
+        "estado":                      datos.estado,
+        "vigencia_hasta":              datos.vigencia_hasta,
         "datos_formulario":            datos.datos_formulario,
         "screening_ofac":              datos.screening_ofac,
         "screening_pep":               datos.screening_pep,
@@ -183,12 +196,42 @@ def _tabla_dict(datos: dict, estilos: dict, max_val_len: int = 80) -> Table:
     return t
 
 
+def _seccion_estado_evaluacion(datos: LegajoDatos, story: list, estilos: dict) -> None:
+    """Sección 0 — Estado de evaluación, vigencia y postura legal. Primer elemento visible."""
+    # Color según estado
+    color_estado = COLOR_ALTO_RIESGO if datos.estado == "ALERTAS_PENDIENTES_REVISION" else COLOR_SECUNDARIO
+    story.append(Paragraph(
+        f"Estado de evaluación automática: <b>{datos.estado}</b>",
+        ParagraphStyle("estado", parent=estilos["normal"], textColor=color_estado,
+                       fontName="Helvetica-Bold", fontSize=11),
+    ))
+    story.append(Paragraph(
+        "decision_oficial_cumplimiento: SIN DECISIÓN AUTOMÁTICA — "
+        "la determinación final es exclusiva del oficial de cumplimiento humano.",
+        ParagraphStyle("decision", parent=estilos["small"], textColor=COLOR_PRIMARIO),
+    ))
+    if datos.vigencia_hasta:
+        story.append(Paragraph(
+            f"<b>Vigencia de esta evaluación:</b> {datos.vigencia_hasta} "
+            "(vencida = re-screenear, no implica baja del cliente)",
+            estilos["small"],
+        ))
+    if datos.nota_legal:
+        story.append(Paragraph(datos.nota_legal, estilos["small"]))
+    _hr(story, color_estado)
+
+
 def _seccion_ofac(datos: LegajoDatos, story: list, estilos: dict) -> None:
     story.append(Paragraph("2. Resultado Screening SANCIONES (OFAC / ONU)", estilos["subtitulo"]))
     ts_consulta = datos.screening_ofac.get("timestamp", "no registrado")
+    pub_ofac    = datos.screening_ofac.get("publicacion_ofac", "—")
+    listas_al   = datos.screening_ofac.get("listas_actualizadas_al", "—")
     story.append(Paragraph(
-        f"<b>Timestamp de consulta:</b> {ts_consulta} | "
-        f"<b>Listas actualizadas al:</b> {datos.screening_ofac.get('listas_actualizadas_al', '—')}",
+        f"<b>Timestamp consulta:</b> {ts_consulta}",
+        estilos["normal"],
+    ))
+    story.append(Paragraph(
+        f"<b>Listas descargadas:</b> {listas_al} &nbsp;|&nbsp; <b>Publicación OFAC:</b> {pub_ofac}",
         estilos["small"],
     ))
     riesgo = datos.screening_ofac.get("ofac", {}).get("riesgo", "desconocido")
@@ -224,11 +267,17 @@ def _seccion_ofac(datos: LegajoDatos, story: list, estilos: dict) -> None:
 
 def _seccion_pep(datos: LegajoDatos, story: list, estilos: dict) -> None:
     story.append(Paragraph("3. Posibles indicios PEP / Adverse Media", estilos["subtitulo"]))
+    # Timestamp: está en cada item como fecha_busqueda; tomar del primero
+    posibles = datos.screening_pep.get("posibles_coincidencias", [])
+    fecha_busqueda = posibles[0].get("fecha_busqueda", "—") if posibles else "—"
+    story.append(Paragraph(
+        f"<b>Fecha de búsqueda en fuentes abiertas:</b> {fecha_busqueda}",
+        estilos["small"],
+    ))
     story.append(Paragraph(
         datos.screening_pep.get("nota", ""),
         estilos["small"],
     ))
-    posibles = datos.screening_pep.get("posibles_coincidencias", [])
     if posibles:
         for p in posibles[:8]:
             confianza = p.get("confianza", "bajo")
@@ -450,6 +499,9 @@ def _generar_pdf(datos: LegajoDatos, legajo_id: str, data_hash: str, faltantes: 
     ))
     _hr(story, COLOR_PRIMARIO)
 
+    # ── Sección 0: Estado de evaluación y postura legal ───────────────────────
+    _seccion_estado_evaluacion(datos, story, estilos)
+
     # ── Sección 1: Datos del cliente ──────────────────────────────────────────
     story.append(Paragraph("1. Datos del Cliente", estilos["subtitulo"]))
     story.append(Paragraph(f"<b>Nombre/Denominación:</b> {datos.nombre_cliente}", estilos["normal"]))
@@ -550,4 +602,6 @@ def exportar_legajo(
         completo=completo,
         faltantes=faltantes,
         audit_hash=audit_hash,
+        id_cliente=datos.id_cliente,
+        estado=datos.estado,
     )

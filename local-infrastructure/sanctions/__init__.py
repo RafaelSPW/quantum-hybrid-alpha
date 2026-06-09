@@ -7,6 +7,8 @@ from .risk_matrix import MatrizRiesgo, version_activa
 from .suspicious_activity import analizar_señales, Transaccion, AlertaInterna
 from .funds_analyzer import extraer_documento, analizar_fondos, PerfilCliente, ExtraccionDocumento
 from .legajo_exporter import exportar_legajo, LegajoDatos, ResultadoExportacion
+from .validacion_cruzada import construir_legajo_unificado, calcular_vigencia_hasta, purgar_legajos_expirados
+from .crypto import cifrar, descifrar, KMSNotConfiguredError
 
 __all__ = [
     # Módulos 1 y 2 — OFAC + PEP
@@ -22,6 +24,10 @@ __all__ = [
     "analizar_señales", "Transaccion", "AlertaInterna",
     # Módulo 7 — Legajo PDF
     "exportar_legajo", "LegajoDatos", "ResultadoExportacion",
+    # Módulo 8 — Legajo unificado + cruce KYC/AML
+    "construir_legajo_unificado", "calcular_vigencia_hasta", "purgar_legajos_expirados",
+    # Cifrado (Ley 18.331)
+    "cifrar", "descifrar", "KMSNotConfiguredError",
     # Audit log (transversal)
     "audit_registrar", "verificar_integridad", "buscar_registros",
 ]

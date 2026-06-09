@@ -26,6 +26,8 @@ from sanctions import (
     buscar_en_ofac,
     screening_pep_adverse,
     construir_reporte,
+    construir_legajo_unificado,
+    KMSNotConfiguredError,
 )
 
 GEMINI_API_KEY       = os.getenv("GEMINI_API_KEY")
@@ -39,16 +41,17 @@ POLL_INTERVAL_SECONDS = 10
 
 # Costo en créditos por tipo de tarea
 CREDIT_COSTS = {
-    "compliance":       50,
-    "markets":          30,
-    "contracts":        75,
-    "legal_chat":       30,
-    "forensic":         25,
-    "market_strategy":  75,
-    "market_asset":     30,
-    "market_audit":     75,
-    "senaclaft_riesgo": 20,
-    "senaclaft_ofac":   40,
+    "compliance":        50,
+    "markets":           30,
+    "contracts":         75,
+    "legal_chat":        30,
+    "forensic":          25,
+    "market_strategy":   75,
+    "market_asset":      30,
+    "market_audit":      75,
+    "senaclaft_riesgo":  20,
+    "senaclaft_ofac":    40,
+    "senaclaft_legajo":  10,   # agregación de resultados ya pagados
 }
 
 
@@ -340,6 +343,126 @@ def procesar_tarea_senaclaft_ofac(db, doc_ref, data: dict):
     print(f"[SENACLAFT OFAC] Completado: {len(coincidencias)} coincidencias para '{nombre}'")
 
 
+def _verificar_ownership_tareas(db, uid: str, *task_ids: str) -> tuple[bool, str]:
+    """
+    Verifica que todas las tareas referenciadas pertenecen al mismo uid.
+    Previene IDOR: un usuario no puede referenciar tareas ajenas para construir un legajo.
+    task_ids vacíos o None se ignoran.
+    """
+    for task_id in task_ids:
+        if not task_id:
+            continue
+        doc = db.collection("tareas_pendientes").document(task_id).get()
+        if not doc.exists:
+            return False, f"Tarea '{task_id}' no encontrada"
+        task_uid = doc.to_dict().get("uid")
+        if task_uid != uid:
+            return False, (
+                f"Tarea '{task_id}' pertenece a otro usuario — IDOR rechazado. "
+                "El legajo solo puede construirse desde tareas del mismo usuario."
+            )
+    return True, ""
+
+
+def procesar_tarea_senaclaft_legajo(db, doc_ref, data: dict):
+    """
+    Construye el Legajo de Cumplimiento unificado cruzando resultados de tareas previas.
+
+    Seguridad IDOR: verifica que screening_task_id, riesgo_task_id y fondos_task_id
+    (si presente) pertenecen todos al mismo uid que esta tarea. Cualquier mismatch
+    rechaza la operación con 403 lógico — no se construye el legajo.
+
+    El legajo resultante se escribe en la colección 'legajos' con owner_uid = uid,
+    para que las Firestore Security Rules puedan aislarlo por usuario.
+    """
+    uid        = data.get("uid", "")
+    id_cliente = data.get("id_cliente", "").strip()
+    scr_id     = data.get("screening_task_id", "").strip()
+    riesgo_id  = data.get("riesgo_task_id", "").strip()
+    fondos_id  = data.get("fondos_task_id", "").strip()
+
+    if not id_cliente:
+        doc_ref.update({"status": "ERROR", "error": "id_cliente requerido"})
+        return
+    if not scr_id or not riesgo_id:
+        doc_ref.update({"status": "ERROR", "error": "screening_task_id y riesgo_task_id son obligatorios"})
+        return
+
+    # ── Verificación IDOR ─────────────────────────────────────────────────────
+    ok, motivo = _verificar_ownership_tareas(db, uid, scr_id, riesgo_id, fondos_id)
+    if not ok:
+        print(f"[LEGAJO] IDOR rechazado para uid={uid}: {motivo}")
+        doc_ref.update({"status": "ERROR", "error": f"Acceso denegado: {motivo}"})
+        return
+
+    # ── Leer resultados de tareas referenciadas ────────────────────────────────
+    scr_doc    = db.collection("tareas_pendientes").document(scr_id).get()
+    riesgo_doc = db.collection("tareas_pendientes").document(riesgo_id).get()
+
+    if not scr_doc.exists or not riesgo_doc.exists:
+        doc_ref.update({"status": "ERROR", "error": "Tarea referenciada no encontrada o fue eliminada"})
+        return
+
+    screening_ofac    = scr_doc.to_dict().get("resultado", {})
+    evaluacion_riesgo = riesgo_doc.to_dict().get("resultado", {})
+
+    if not screening_ofac or not evaluacion_riesgo:
+        doc_ref.update({"status": "ERROR", "error": "Tarea referenciada sin resultado (aún PENDIENTE o ERROR)"})
+        return
+
+    # ── Fondos: solo si confirmado_por_investigador ───────────────────────────
+    analisis_fondos = None
+    if fondos_id:
+        fondos_doc = db.collection("tareas_pendientes").document(fondos_id).get()
+        if fondos_doc.exists:
+            fondos_resultado = fondos_doc.to_dict().get("resultado", {})
+            if fondos_resultado.get("confirmado_por_investigador", False):
+                analisis_fondos = fondos_resultado
+            else:
+                print(f"[LEGAJO] fondos_task '{fondos_id}' ignorado — no confirmado por investigador")
+
+    # ── Construir legajo ──────────────────────────────────────────────────────
+    try:
+        legajo = construir_legajo_unificado(
+            id_cliente        =id_cliente,
+            screening_ofac    =screening_ofac,
+            evaluacion_riesgo =evaluacion_riesgo,
+            analisis_fondos   =analisis_fondos,
+            owner_uid         =uid,
+            usuario_id        =uid,
+        )
+    except KMSNotConfiguredError as e:
+        doc_ref.update({"status": "ERROR", "error": f"KMS no configurado: {e}"})
+        return
+    except Exception as e:
+        doc_ref.update({"status": "ERROR", "error": f"Error construyendo legajo: {e}"})
+        return
+
+    # ── Escribir en colección legajos (owner_uid para Firestore Rules) ─────────
+    legajo_doc = db.collection("legajos").document()
+    legajo_doc.set({
+        **legajo,
+        "owner_uid":  uid,        # garantiza aislamiento multi-tenant
+        "creado_en":  firestore.SERVER_TIMESTAMP,
+    })
+
+    doc_ref.update({
+        "status": "COMPLETADO",
+        "resultado": {
+            "legajo_id":      legajo_doc.id,
+            "id_evaluacion":  legajo["id_evaluacion"],
+            "estado":         legajo["estado"],
+            "vigencia_hasta": legajo["vigencia_hasta"],
+        },
+        "procesado_en": firestore.SERVER_TIMESTAMP,
+    })
+    _descontar_creditos(db, uid, "senaclaft_legajo")
+    print(
+        f"[LEGAJO] {legajo_doc.id} creado para cliente '{id_cliente}' "
+        f"(uid={uid}, estado={legajo['estado']})"
+    )
+
+
 def procesar_tarea_generar_articulo(db, doc_ref, data: dict):
     """Genera un artículo con Gemini y lo guarda en la colección 'articulos' (sin publicar)."""
     from google import genai
@@ -471,6 +594,8 @@ def main():
                         procesar_tarea_senaclaft_riesgo(db, doc_ref, data)
                     elif tipo == "senaclaft_ofac":
                         procesar_tarea_senaclaft_ofac(db, doc_ref, data)
+                    elif tipo == "senaclaft_legajo":
+                        procesar_tarea_senaclaft_legajo(db, doc_ref, data)
                     else:
                         print(f"[WARN] Tipo desconocido: {tipo}")
                         doc_ref.update({"status": "ERROR", "error": "Tipo desconocido"})

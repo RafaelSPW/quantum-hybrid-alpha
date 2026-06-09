@@ -1,0 +1,8 @@
+{
+  "vigencias_dias": {
+    "Alto":     180,
+    "Moderado": 365,
+    "Bajo":     730
+  },
+  "retencion_anos": 5
+}

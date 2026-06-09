@@ -11,6 +11,13 @@ from typing import Any
 from .matcher import Coincidencia
 from .ofac_loader import OFACDatabase
 
+_NOTA_LEGAL_OFAC = (
+    "Screening automatizado de apoyo. Los resultados son indicadores de priorización "
+    "y no constituyen determinación legal de ningún tipo. "
+    "La determinación final es exclusiva del oficial de cumplimiento humano. "
+    "AHC Intelligence — SENACLAFT / Ley 19.574."
+)
+
 
 # ─── Nivel de riesgo OFAC ─────────────────────────────────────────────────────
 
@@ -80,9 +87,12 @@ def construir_reporte(
             "fuentes_ok":      db.fuentes_ok,
             "fuentes_error":   db.fuentes_error,
         },
-        "pep_adverse_media":      resultado_pep,
-        "listas_actualizadas_al": db.descargado_el or "desconocido",
-        "publicacion_ofac":       db.publicado_el  or "desconocido",
+        "pep_adverse_media":             resultado_pep,
+        "listas_actualizadas_al":        db.descargado_el or "desconocido",
+        "publicacion_ofac":              db.publicado_el  or "desconocido",
+        "decision_oficial_cumplimiento": None,
+        "requiere_revision_humana":      True,
+        "nota_legal":                    _NOTA_LEGAL_OFAC,
     }
 
 

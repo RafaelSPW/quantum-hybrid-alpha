@@ -17,12 +17,32 @@ import hashlib
 import json
 import shutil
 import unicodedata
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# Ruta absoluta al config — independiente del directorio de trabajo
-CONFIG_PATH  = Path(__file__).parent / "matriz_riesgo_config.json"
-ARCHIVE_DIR  = Path(__file__).parent / "cache" / "risk_config_history"
+# Rutas absolutas — independientes del directorio de trabajo
+CONFIG_PATH       = Path(__file__).parent / "matriz_riesgo_config.json"
+ARCHIVE_DIR       = Path(__file__).parent / "cache" / "risk_config_history"
+_VIGENCIA_PATH    = Path(__file__).parent / "vigencia_config.json"
+_DEFAULTS_VIGENCIA = {"Alto": 180, "Moderado": 365, "Bajo": 730}
+
+_NOTA_LEGAL_RIESGO = (
+    "Calificación automática de apoyo. No constituye determinación legal ni "
+    "habilitación de operación. La determinación final es exclusiva del oficial "
+    "de cumplimiento humano. AHC Intelligence — SENACLAFT / Ley 19.574."
+)
+
+
+def _vigencia_hasta(nivel_riesgo: str) -> str:
+    """Calcula vigencia_hasta según nivel de riesgo. Configurable vía vigencia_config.json."""
+    try:
+        cfg = json.loads(_VIGENCIA_PATH.read_text(encoding="utf-8"))
+        dias_map = cfg.get("vigencias_dias", _DEFAULTS_VIGENCIA)
+    except Exception:
+        dias_map = _DEFAULTS_VIGENCIA
+    dias = dias_map.get(nivel_riesgo, 365)
+    return (datetime.now(timezone.utc) + timedelta(days=dias)).isoformat()
 
 
 def _norm(texto: str) -> str:
@@ -178,16 +198,21 @@ class MatrizRiesgo:
                 "numero": cliente.get("numero_cliente"),
                 "nombre": cliente.get("nombre_cliente"),
             },
-            "timestamp":             datetime.now(timezone.utc).isoformat(),
-            "version_matriz":        self.cfg["version"],
-            "fecha_lista_paises":    self.cfg.get("fecha_lista_paises", ""),
-            "config_hash":           self.config_hash,   # SHA-256 del JSON — trazabilidad
-            "total_ponderado":       total_ponderado,
-            "riesgo":                etiqueta,
-            "bloqueado":             bloqueado,
-            "motivo_bloqueo":        motivo_bloqueo,
-            "respuestas_no_encontradas": faltantes,
-            "detalle":               detalle,
+            "timestamp":                     datetime.now(timezone.utc).isoformat(),
+            "id_evaluacion":                 str(uuid.uuid4()),
+            "vigencia_hasta":                _vigencia_hasta(etiqueta),
+            "version_matriz":                self.cfg["version"],
+            "fecha_lista_paises":            self.cfg.get("fecha_lista_paises", ""),
+            "config_hash":                   self.config_hash,
+            "total_ponderado":               total_ponderado,
+            "riesgo":                        etiqueta,
+            "bloqueado":                     bloqueado,
+            "motivo_bloqueo":                motivo_bloqueo,
+            "respuestas_no_encontradas":     faltantes,
+            "detalle":                       detalle,
+            "decision_oficial_cumplimiento": None,
+            "requiere_revision_humana":      True,
+            "nota_legal":                    _NOTA_LEGAL_RIESGO,
             "nota": (
                 "Calificacion automatica de apoyo. No constituye determinacion legal. "
                 "Revision y firma del oficial de cumplimiento requerida. "

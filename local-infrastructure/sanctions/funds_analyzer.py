@@ -80,7 +80,10 @@ class AnalisisFondos:
     documentos_analizados: list[str]
     montos_confirmados: list[dict]
     timestamp_analisis: str
-    nota: str                           # siempre incluye recordatorio de limitación
+    nota: str
+    # Indicador de consistencia — no es un veredicto
+    consistencia_perfil_origen: str = ""
+    requiere_revision_humana: bool = True
 
 
 # ─── Extracción desde PDF (pdfplumber) ────────────────────────────────────────
@@ -371,6 +374,12 @@ def analizar_fondos(
         bandera = ratio >= umbral_incongruencia
 
     descripcion = ""
+    _nota_no_licitud = (
+        "La coincidencia entre el volumen documentado y la actividad declarada "
+        "no constituye prueba de licitud de los fondos. "
+        "La determinación es responsabilidad exclusiva del oficial de cumplimiento."
+    )
+
     if bandera:
         descripcion = (
             f"Posible incongruencia: volumen documentado USD {total_usd:.2f} "
@@ -378,10 +387,19 @@ def analizar_fondos(
             f"Supera umbral configurado de {umbral_incongruencia:.1f}×. "
             f"Requiere verificación por el investigador."
         )
+        consistencia = (
+            f"Indicador: volumen documentado supera {ratio:.1f}× el perfil declarado "
+            f"(umbral: {umbral_incongruencia:.1f}×). {_nota_no_licitud}"
+        )
     else:
         descripcion = (
             f"Sin incongruencia detectada: volumen documentado USD {total_usd:.2f} "
             f"({ratio:.1f}× del perfil declarado, umbral: {umbral_incongruencia:.1f}×)."
+        )
+        consistencia = (
+            f"Sin indicador de incongruencia numérica en revisión automática "
+            f"({ratio:.2f}× del perfil, umbral: {umbral_incongruencia:.1f}×). "
+            f"La ausencia de este indicador no implica conformidad. {_nota_no_licitud}"
         )
 
     if advertencias_analisis:
@@ -398,8 +416,9 @@ def analizar_fondos(
         montos_confirmados=montos_confirmados,
         timestamp_analisis=timestamp,
         nota=(
-            "Análisis automático de apoyo. La determinación de congruencia o incongruencia "
-            "es responsabilidad exclusiva del oficial de compliance. "
-            "Las tasas de cambio son aproximadas — verificar con el BCU."
+            "Análisis automático de apoyo. Las tasas de cambio son aproximadas — "
+            "verificar con el BCU. " + _nota_no_licitud
         ),
+        consistencia_perfil_origen=consistencia,
+        requiere_revision_humana=True,
     )

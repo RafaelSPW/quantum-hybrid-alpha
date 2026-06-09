@@ -54,6 +54,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Legajos de Cumplimiento — aislamiento estricto por propietario ──────────
+    // Solo el backend (Admin SDK) escribe legajos (allow write: if false).
+    // Cada usuario solo puede leer sus propios legajos (owner_uid == uid).
+    // La colección soporta historial: múltiples legajos por id_cliente, uno por evaluación.
+    match /legajos/{legajoId} {
+      allow read:  if esAuth() && request.auth.uid == resource.data.owner_uid;
+      allow write: if false;
+    }
+
     // ── Leads institucionales — cualquier usuario autenticado puede crear ───────
     match /leads_institucionales/{leadId} {
       allow create: if esAuth();
