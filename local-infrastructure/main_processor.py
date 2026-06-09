@@ -323,7 +323,10 @@ def procesar_tarea_senaclaft_ofac(db, doc_ref, data: dict):
 
     try:
         print(f"[SENACLAFT OFAC] Actualizando listas OFAC...")
-        ofac_db = actualizar_listas()
+        # Pasa el bucket GCS para backup persistente entre deploys de Cloud Run.
+        # Si OFAC rechaza la conexión, carga desde GCS. Si descarga OK, hace backup.
+        gcs_bucket = admin_storage.bucket(FIREBASE_BUCKET)
+        ofac_db = actualizar_listas(gcs_bucket=gcs_bucket)
     except Exception as e:
         doc_ref.update({"status": "ERROR", "error": f"Error descargando listas OFAC: {e}"})
         return
@@ -589,6 +592,28 @@ Respondé ESTRICTAMENTE en JSON:
     print(f"[ARTICULO] Generado: '{resultado.get('titulo')}' (id: {art_ref.id})")
 
 
+def _recuperar_tareas_huerfanas(db) -> None:
+    """
+    Al startup, resetea a PENDIENTE las tareas que quedaron en EN_PROCESO por una
+    revisión anterior de Cloud Run que fue reemplazada mientras procesaba.
+    Es seguro hacerlo al arrancar porque el container anterior ya fue terminado.
+    """
+    try:
+        huerfanas = (
+            db.collection("tareas_pendientes")
+            .where(filter=firestore.FieldFilter("status", "==", "EN_PROCESO"))
+            .stream()
+        )
+        count = 0
+        for t in huerfanas:
+            db.collection("tareas_pendientes").document(t.id).update({"status": "PENDIENTE"})
+            count += 1
+        if count:
+            print(f"[SISTEMA] {count} tarea(s) huérfana(s) EN_PROCESO → PENDIENTE (retomadas)")
+    except Exception as e:
+        print(f"[SISTEMA] Error recuperando tareas huérfanas: {e}")
+
+
 def main():
     init_db()
 
@@ -614,6 +639,9 @@ def main():
         print("[FATAL] No se pudo conectar a Firestore después de 10 intentos. Abortando.")
         return
 
+    # Recuperar tareas que quedaron EN_PROCESO si la revisión anterior fue reemplazada
+    _recuperar_tareas_huerfanas(db)
+
     # Monitor PayPal en thread paralelo (no bloquea el procesador principal)
     t = threading.Thread(target=monitorear_suscripciones, args=(db,), daemon=True)
     t.start()
@@ -630,7 +658,10 @@ def main():
             for tarea in tareas:
                 data    = tarea.to_dict()
                 doc_ref = db.collection("tareas_pendientes").document(tarea.id)
-                doc_ref.update({"status": "EN_PROCESO"})
+                doc_ref.update({
+                    "status": "EN_PROCESO",
+                    "en_proceso_desde": firestore.SERVER_TIMESTAMP,
+                })
 
                 tipo = data.get("tipo")
                 try:

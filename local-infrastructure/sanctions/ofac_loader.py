@@ -96,6 +96,31 @@ def _tag(nombre: str, usa_ns: bool) -> str:
 
 # ─── Descarga ─────────────────────────────────────────────────────────────────
 
+def _intentar_gcs(gcs_bucket, blob_name: str) -> bytes:
+    """Descarga un XML desde GCS como fallback cuando el servidor OFAC no responde."""
+    try:
+        blob = gcs_bucket.blob(blob_name)
+        if blob.exists():
+            data = blob.download_as_bytes(timeout=30)
+            logger.info("GCS fallback OK: %s (%d bytes)", blob_name, len(data))
+            return data
+        logger.warning("GCS fallback: %s no existe en bucket", blob_name)
+    except Exception as exc:
+        logger.warning("GCS fallback falló para %s: %s", blob_name, exc)
+    return b""
+
+
+def _subir_gcs(gcs_bucket, blob_name: str, data: bytes) -> None:
+    """Sube el XML a GCS como backup persistente entre deploys."""
+    try:
+        gcs_bucket.blob(blob_name).upload_from_string(
+            data, content_type="application/xml", timeout=30
+        )
+        logger.info("GCS backup: %s subido (%d bytes)", blob_name, len(data))
+    except Exception as exc:
+        logger.warning("GCS backup falló para %s: %s", blob_name, exc)
+
+
 def _descargar_xml(url: str, fallback: Optional[str] = None) -> tuple[bytes, int]:
     """
     Descarga el XML desde la URL principal; si falla, intenta el fallback.
@@ -231,11 +256,15 @@ def _cache_vigente() -> bool:
 
 # ─── API pública ──────────────────────────────────────────────────────────────
 
-def actualizar_listas(forzar: bool = False) -> OFACDatabase:
+def actualizar_listas(forzar: bool = False, gcs_bucket=None) -> OFACDatabase:
     """
     Descarga las listas OFAC si el caché de disco venció (o forzar=True).
     Parsea el XML solo cuando el timestamp de disco cambia; todos los
     clientes dentro del mismo proceso reutilizan el objeto en memoria.
+
+    gcs_bucket: bucket de Firebase/GCS para backup persistente entre deploys de Cloud Run.
+      - Si la descarga directa falla, intenta restaurar desde GCS.
+      - Si la descarga directa funciona, sube a GCS como backup para futuros deploys.
     """
     global _DB_INSTANCE, _DB_INSTANCE_TS
 
@@ -253,9 +282,9 @@ def actualizar_listas(forzar: bool = False) -> OFACDatabase:
             meta = _leer_meta()
             meta["fuentes"] = meta.get("fuentes", {})
             alguna_ok = False
-            for nombre, url, fallback, cache_path in [
-                ("SDN",          OFAC_SDN_URL,  OFAC_SDN_FALLBACK,  SDN_CACHE_PATH),
-                ("Consolidated", OFAC_CONS_URL, OFAC_CONS_FALLBACK, CONS_CACHE_PATH),
+            for nombre, url, fallback, cache_path, gcs_blob in [
+                ("SDN",          OFAC_SDN_URL,  OFAC_SDN_FALLBACK,  SDN_CACHE_PATH,  "ofac/sdn.xml"),
+                ("Consolidated", OFAC_CONS_URL, OFAC_CONS_FALLBACK, CONS_CACHE_PATH, "ofac/cons.xml"),
             ]:
                 xml_bytes, status = _descargar_xml(url, fallback)
                 meta["fuentes"][nombre] = {"status_http": status, "timestamp": ahora}
@@ -263,8 +292,21 @@ def actualizar_listas(forzar: bool = False) -> OFACDatabase:
                     cache_path.write_bytes(xml_bytes)
                     alguna_ok = True
                     logger.info("Lista %s → caché actualizado (%d bytes, HTTP %d)", nombre, len(xml_bytes), status)
+                    # Backup en GCS para persistir entre deploys de Cloud Run
+                    if gcs_bucket:
+                        _subir_gcs(gcs_bucket, gcs_blob, xml_bytes)
                 else:
-                    logger.error("Lista %s → descarga fallida (HTTP %d)", nombre, status)
+                    # Fallback: intentar restaurar desde GCS cuando OFAC no responde
+                    if gcs_bucket:
+                        gcs_bytes = _intentar_gcs(gcs_bucket, gcs_blob)
+                        if gcs_bytes:
+                            cache_path.write_bytes(gcs_bytes)
+                            alguna_ok = True
+                            logger.info(
+                                "Lista %s → restaurada desde GCS (%d bytes)", nombre, len(gcs_bytes)
+                            )
+                    if not (xml_bytes or (gcs_bucket and cache_path.exists())):
+                        logger.error("Lista %s → descarga fallida (HTTP %d)", nombre, status)
             # Solo actualizar el timestamp si al menos una lista descargó correctamente.
             # Si ambas fallan, el timestamp queda sin cambiar y el próximo request reintenta.
             if alguna_ok:
