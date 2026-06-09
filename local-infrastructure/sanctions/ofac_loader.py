@@ -243,9 +243,16 @@ def actualizar_listas(forzar: bool = False) -> OFACDatabase:
 
     with _DB_LOCK:
         # ── Paso 1: decidir si hay que re-descargar de OFAC ──────────────
-        if forzar or not _cache_vigente():
+        # Forzar descarga también si el caché dice ser vigente pero los archivos
+        # no existen en disco (ej: download previo falló y guardó igual el timestamp).
+        archivos_faltantes = not SDN_CACHE_PATH.exists() or not CONS_CACHE_PATH.exists()
+        if forzar or not _cache_vigente() or archivos_faltantes:
+            if archivos_faltantes and _cache_vigente():
+                logger.warning("Caché marcado vigente pero archivos XML ausentes — forzando re-descarga")
             ahora = datetime.utcnow().isoformat()
-            meta = {"descargado_el": ahora, "fuentes": {}}
+            meta = _leer_meta()
+            meta["fuentes"] = meta.get("fuentes", {})
+            alguna_ok = False
             for nombre, url, fallback, cache_path in [
                 ("SDN",          OFAC_SDN_URL,  OFAC_SDN_FALLBACK,  SDN_CACHE_PATH),
                 ("Consolidated", OFAC_CONS_URL, OFAC_CONS_FALLBACK, CONS_CACHE_PATH),
@@ -254,9 +261,16 @@ def actualizar_listas(forzar: bool = False) -> OFACDatabase:
                 meta["fuentes"][nombre] = {"status_http": status, "timestamp": ahora}
                 if xml_bytes:
                     cache_path.write_bytes(xml_bytes)
+                    alguna_ok = True
                     logger.info("Lista %s → caché actualizado (%d bytes, HTTP %d)", nombre, len(xml_bytes), status)
                 else:
                     logger.error("Lista %s → descarga fallida (HTTP %d)", nombre, status)
+            # Solo actualizar el timestamp si al menos una lista descargó correctamente.
+            # Si ambas fallan, el timestamp queda sin cambiar y el próximo request reintenta.
+            if alguna_ok:
+                meta["descargado_el"] = ahora
+                _DB_INSTANCE    = None  # invalidar singleton para forzar re-parseo
+                _DB_INSTANCE_TS = ""
             _guardar_meta(meta)
 
         # ── Paso 2: si el singleton en memoria es del mismo ciclo, reusarlo ──

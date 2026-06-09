@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 import requests
 

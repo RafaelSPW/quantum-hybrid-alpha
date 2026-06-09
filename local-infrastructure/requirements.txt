@@ -6,7 +6,7 @@ Pillow>=10.0.0
 requests>=2.31.0
 # Módulo sanctions
 rapidfuzz>=3.0
-duckduckgo-search>=6.0
+ddgs>=6.0
 pdfplumber>=0.11
 reportlab>=4.0
 pyyaml>=6.0
