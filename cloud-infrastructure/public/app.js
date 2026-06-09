@@ -24,7 +24,7 @@ function safeUrl(url) {
 }
 
 // Costo de créditos por tipo de tarea
-const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 30, forensic: 25, market_strategy: 75, market_asset: 30, market_audit: 75 };
+const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 30, forensic: 25, market_strategy: 75, market_asset: 30, market_audit: 75, senaclaft_riesgo: 20, senaclaft_ofac: 40 };
 
 // PayPal Live — Client ID público (frontend)
 const PAYPAL_CLIENT_ID = "ASgYio7YMJjMUEPh8cBeG8wjVSHQrblcozu-wdWN_YRyZeNahEoALcX0IVBxLSx2WUqhj89vwDICR_GT";
@@ -2982,3 +2982,238 @@ auth.onAuthStateChanged(function(user) {
     _creditos = null;
   }
 });
+
+// ── SENACLAFT — EVALUACIÓN DE RIESGO ─────────────────────────────────────────
+
+var _unsubSenaclaftRiesgo = null;
+var _unsubSenaclaftOfac   = null;
+
+async function enviarSenaclaftRiesgo(event) {
+  event.preventDefault();
+  var user = auth.currentUser;
+  if (!user) { loginGoogle(); return; }
+  if (!verificarCreditos("senaclaft_riesgo")) return;
+
+  if (_unsubSenaclaftRiesgo) { _unsubSenaclaftRiesgo(); _unsubSenaclaftRiesgo = null; }
+
+  var datos = {
+    tipo:                    "senaclaft_riesgo",
+    status:                  "PENDIENTE",
+    uid:                     user.uid,
+    nombre_cliente:          (document.getElementById("sr-nombre") || {}).value || "",
+    numero_cliente:          (document.getElementById("sr-numero") || {}).value || "",
+    actividad_economica:     (document.getElementById("sr-actividad") || {}).value || "",
+    calidad_pep:             (document.getElementById("sr-pep") || {}).value || "NO",
+    opera_cuenta_terceros:   (document.getElementById("sr-terceros") || {}).value || "NO",
+    monto_significativo:     (document.getElementById("sr-monto") || {}).value || "NO",
+    pais_residencia:         (document.getElementById("sr-pais-res") || {}).value || "",
+    pais_actividad_comercial:(document.getElementById("sr-pais-act") || {}).value || "",
+    productos_servicios:     (document.getElementById("sr-productos") || {}).value || "NO",
+    creado_en:               firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (!datos.actividad_economica || !datos.pais_residencia) {
+    alert("Actividad económica y país de residencia son obligatorios."); return;
+  }
+
+  var estado = document.getElementById("sr-estado");
+  if (estado) { estado.className = "estado-msg activo"; estado.innerHTML = '<span class="ahc-spinner"></span>Evaluando riesgo...'; }
+
+  var ref = await db.collection("tareas_pendientes").add(datos);
+
+  var resBox = document.getElementById("sr-resultado");
+  if (resBox) resBox.style.display = "none";
+
+  _unsubSenaclaftRiesgo = db.collection("tareas_pendientes").doc(ref.id).onSnapshot(function(snap) {
+    var d = snap.data();
+    if (!d) return;
+    if (d.status === "COMPLETADO") {
+      if (_unsubSenaclaftRiesgo) { _unsubSenaclaftRiesgo(); _unsubSenaclaftRiesgo = null; }
+      if (estado) { estado.className = "estado-msg"; estado.textContent = ""; }
+      renderizarSenaclaftRiesgo(d.resultado);
+    } else if (d.status === "ERROR") {
+      if (_unsubSenaclaftRiesgo) { _unsubSenaclaftRiesgo(); _unsubSenaclaftRiesgo = null; }
+      if (estado) { estado.style.color = "#b02020"; estado.textContent = "Error: " + (d.error || "Error desconocido"); }
+    }
+  });
+}
+
+function renderizarSenaclaftRiesgo(r) {
+  var resBox = document.getElementById("sr-resultado");
+  if (!resBox) return;
+
+  var riesgoColor = { "Bajo": "#1a6e3a", "Moderado": "#8a6000", "Alto": "#b02020" };
+  var riesgo = r.riesgo || "—";
+  var color  = riesgoColor[riesgo] || "#333";
+
+  var bloqHtml = "";
+  if (r.bloqueado) {
+    bloqHtml = '<div style="background:#fde8e8;border:1px solid #f5a0a0;border-radius:4px;padding:12px 16px;margin-top:14px;color:#b02020;font-size:0.88rem">'
+      + '<strong>⚠ BLOQUEO ACTIVO:</strong> ' + escHtml(r.motivo_bloqueo || "Parámetro con código de bloqueo 999.") + '</div>';
+  }
+
+  var faltantesHtml = "";
+  if (r.respuestas_no_encontradas && r.respuestas_no_encontradas.length) {
+    faltantesHtml = '<div style="background:#fff8e6;border:1px solid #e0c060;border-radius:4px;padding:10px 16px;margin-top:10px;font-size:0.83rem;color:#7a5500">'
+      + '<strong>Factores no encontrados en tabla:</strong> '
+      + r.respuestas_no_encontradas.map(function(f){ return escHtml(f.factor) + ' ("' + escHtml(f.respuesta_recibida) + '")'; }).join(", ")
+      + '</div>';
+  }
+
+  var detalleHtml = '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:14px">'
+    + '<thead><tr style="background:#f0f4fa;text-align:left">'
+    + '<th style="padding:7px 10px;border-bottom:1px solid #d0d8e4">Factor</th>'
+    + '<th style="padding:7px 10px;border-bottom:1px solid #d0d8e4">Respuesta</th>'
+    + '<th style="padding:7px 10px;border-bottom:1px solid #d0d8e4;text-align:right">Puntaje</th>'
+    + '<th style="padding:7px 10px;border-bottom:1px solid #d0d8e4;text-align:right">Ponderado</th>'
+    + '</tr></thead><tbody>';
+
+  (r.detalle || []).forEach(function(item) {
+    var rowColor = item.bloqueo ? "#fff0f0" : (!item.en_tabla ? "#fffbe6" : "");
+    detalleHtml += '<tr style="background:' + rowColor + ';border-bottom:1px solid #eef2f8">'
+      + '<td style="padding:6px 10px">' + escHtml(item.factor.replace(/_/g," ")) + (item.bloqueo ? ' <span style="color:#b02020;font-size:0.75rem">⚠ BLOQUEO</span>' : "") + '</td>'
+      + '<td style="padding:6px 10px">' + escHtml(item.respuesta || "—") + '</td>'
+      + '<td style="padding:6px 10px;text-align:right">' + (item.puntaje !== null ? item.puntaje : "—") + '</td>'
+      + '<td style="padding:6px 10px;text-align:right;font-weight:600">' + (item.ponderado !== undefined ? item.ponderado : "—") + '</td>'
+      + '</tr>';
+  });
+  detalleHtml += '</tbody></table>';
+
+  resBox.innerHTML =
+    '<div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">'
+    + '<div style="font-size:1.6rem;font-weight:800;color:' + color + '">' + escHtml(riesgo) + '</div>'
+    + '<div style="font-size:0.95rem;color:#555">Puntaje ponderado: <strong>' + (r.total_ponderado || "0") + '</strong></div>'
+    + (r.bloqueado ? '<div style="background:#b02020;color:#fff;font-size:0.75rem;font-weight:700;padding:3px 10px;border-radius:3px">BLOQUEADO</div>' : '')
+    + '</div>'
+    + bloqHtml + faltantesHtml + detalleHtml
+    + '<div style="margin-top:14px;font-size:0.75rem;color:#888;border-top:1px solid #eef2f8;padding-top:10px">'
+    + 'Versión matriz: ' + escHtml(r.version_matriz || "—") + ' &nbsp;|&nbsp; '
+    + 'Hash config: ' + escHtml((r.config_hash || "").substring(0,12)) + '... &nbsp;|&nbsp; '
+    + escHtml(r.timestamp || "")
+    + '</div>'
+    + '<div style="margin-top:8px;font-size:0.78rem;color:#777;font-style:italic">' + escHtml(r.nota || "") + '</div>';
+
+  resBox.style.display = "block";
+  resBox.scrollIntoView({ behavior: "smooth" });
+}
+
+// ── SENACLAFT — SCREENING OFAC/PEP ───────────────────────────────────────────
+
+async function enviarSenaclaftOfac(event) {
+  event.preventDefault();
+  var user = auth.currentUser;
+  if (!user) { loginGoogle(); return; }
+  if (!verificarCreditos("senaclaft_ofac")) return;
+
+  if (_unsubSenaclaftOfac) { _unsubSenaclaftOfac(); _unsubSenaclaftOfac = null; }
+
+  var nombre = (document.getElementById("so-nombre") || {}).value || "";
+  var umbral = parseInt((document.getElementById("so-umbral") || {}).value || "85");
+
+  if (!nombre) { alert("El nombre del sujeto es obligatorio."); return; }
+
+  var estado = document.getElementById("so-estado");
+  if (estado) { estado.className = "estado-msg activo"; estado.innerHTML = '<span class="ahc-spinner"></span>Descargando listas OFAC y ejecutando screening...'; }
+
+  var ref = await db.collection("tareas_pendientes").add({
+    tipo:      "senaclaft_ofac",
+    status:    "PENDIENTE",
+    uid:       user.uid,
+    nombre:    nombre,
+    umbral:    umbral,
+    creado_en: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+
+  var resBox = document.getElementById("so-resultado");
+  if (resBox) resBox.style.display = "none";
+
+  _unsubSenaclaftOfac = db.collection("tareas_pendientes").doc(ref.id).onSnapshot(function(snap) {
+    var d = snap.data();
+    if (!d) return;
+    if (d.status === "COMPLETADO") {
+      if (_unsubSenaclaftOfac) { _unsubSenaclaftOfac(); _unsubSenaclaftOfac = null; }
+      if (estado) { estado.className = "estado-msg"; estado.textContent = ""; }
+      renderizarSenaclaftOfac(d.resultado, nombre);
+    } else if (d.status === "ERROR") {
+      if (_unsubSenaclaftOfac) { _unsubSenaclaftOfac(); _unsubSenaclaftOfac = null; }
+      if (estado) { estado.style.color = "#b02020"; estado.textContent = "Error: " + (d.error || "Error desconocido"); }
+    }
+  });
+}
+
+function renderizarSenaclaftOfac(r, nombreConsultado) {
+  var resBox = document.getElementById("so-resultado");
+  if (!resBox) return;
+
+  var riesgoOfac = r.riesgo_ofac || "ninguno";
+  var riesgoColor = { "alto": "#b02020", "revisar": "#8a6000", "ninguno": "#1a6e3a" };
+  var color = riesgoColor[riesgoOfac] || "#333";
+  var labelOfac = { "alto": "COINCIDENCIA ALTA", "revisar": "REVISAR", "ninguno": "SIN COINCIDENCIAS" };
+
+  var coincHtml = "";
+  var coincs = r.coincidencias_ofac || [];
+  if (coincs.length) {
+    coincHtml = '<div style="margin-top:14px">'
+      + '<div style="font-size:0.78rem;font-weight:700;color:#1a56a0;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Coincidencias en Listas OFAC (' + coincs.length + ')</div>'
+      + coincs.map(function(c) {
+          return '<div style="background:#fff8f8;border:1px solid #f0d0d0;border-radius:4px;padding:10px 14px;margin-bottom:8px;font-size:0.85rem">'
+            + '<div style="font-weight:700;color:#b02020;margin-bottom:4px">' + escHtml(c.nombre_en_lista || "—") + '</div>'
+            + '<div style="display:flex;gap:16px;flex-wrap:wrap;color:#555">'
+            + '<span>Score: <strong>' + (c.score || "—") + '</strong></span>'
+            + '<span>Lista: <strong>' + escHtml(c.lista_origen || "—") + '</strong></span>'
+            + (c.programas && c.programas.length ? '<span>Programas: <strong>' + escHtml(c.programas.join(", ")) + '</strong></span>' : '')
+            + (c.paises && c.paises.length ? '<span>Países: <strong>' + escHtml(c.paises.join(", ")) + '</strong></span>' : '')
+            + '</div></div>';
+        }).join("")
+      + '</div>';
+  } else {
+    coincHtml = '<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border:1px solid #a8d8b8;border-radius:4px;font-size:0.85rem;color:#1a6e3a">'
+      + '✓ Sin coincidencias en listas OFAC SDN y Consolidada para el umbral establecido (' + (r.umbral_utilizado || 85) + '%).'
+      + '</div>';
+  }
+
+  var pep = r.screening_pep || {};
+  var pepConf = pep.confianza || "bajo";
+  var pepColor = { "alto": "#b02020", "medio": "#8a6000", "bajo": "#1a6e3a" }[pepConf] || "#555";
+  var pepHtml = '<div style="margin-top:14px">'
+    + '<div style="font-size:0.78rem;font-weight:700;color:#1a56a0;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Indicadores PEP / Medios Adversos</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+    + '<span style="font-size:0.85rem">Nivel de indicios:</span>'
+    + '<span style="font-weight:700;color:' + pepColor + '">' + pepConf.toUpperCase() + '</span>'
+    + '</div>';
+
+  var inds = pep.indicadores || [];
+  if (inds.length) {
+    pepHtml += inds.map(function(i){ return '<div style="background:#f8f9fb;border:1px solid #d8e2f0;border-radius:3px;padding:7px 12px;margin-bottom:6px;font-size:0.83rem">' + escHtml(i) + '</div>'; }).join("");
+  } else {
+    pepHtml += '<div style="font-size:0.85rem;color:#555">Sin indicadores PEP detectados en fuentes abiertas.</div>';
+  }
+
+  var fuentes = pep.fuentes || [];
+  if (fuentes.length) {
+    pepHtml += '<div style="margin-top:8px;font-size:0.8rem;color:#888">Fuentes consultadas: '
+      + fuentes.map(function(f){ return '<a href="' + escHtml(safeUrl(f.url || f)) + '" target="_blank" rel="noopener" style="color:#1a56a0;margin-right:6px">' + escHtml(f.titulo || f.url || f) + '</a>'; }).join("")
+      + '</div>';
+  }
+
+  if (pep.nota) {
+    pepHtml += '<div style="margin-top:8px;font-size:0.78rem;color:#777;font-style:italic">' + escHtml(pep.nota) + '</div>';
+  }
+  pepHtml += '</div>';
+
+  resBox.innerHTML =
+    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:4px">'
+    + '<div style="font-size:1rem;font-weight:800;color:' + color + ';background:' + (riesgoOfac === "alto" ? "#fde8e8" : riesgoOfac === "revisar" ? "#fff8e6" : "#f0faf4") + ';padding:6px 14px;border-radius:4px">'
+    + escHtml(labelOfac[riesgoOfac] || riesgoOfac.toUpperCase()) + '</div>'
+    + '<div style="font-size:0.9rem;color:#555">Consultado: <strong>' + escHtml(nombreConsultado) + '</strong></div>'
+    + '</div>'
+    + coincHtml + pepHtml
+    + '<div style="margin-top:14px;font-size:0.78rem;color:#888;border-top:1px solid #eef2f8;padding-top:10px">'
+    + 'Fuentes OFAC: SDN List + Consolidated Sanctions List &nbsp;|&nbsp; '
+    + 'Actualizado: ' + escHtml(r.fecha_actualizacion_ofac || "—") + '<br>'
+    + escHtml(r.nota_metodologica || "Análisis de medios adversos y fuentes abiertas mediante IA. No sustituye la consulta directa a listas oficiales.")
+    + '</div>';
+
+  resBox.style.display = "block";
+  resBox.scrollIntoView({ behavior: "smooth" });
+}

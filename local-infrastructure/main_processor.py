@@ -20,6 +20,13 @@ from agents.agent_contracts   import QuantumContractsAgent
 from agents.agent_legal_chat  import QuantumLegalChatAgent
 from database.local_cache     import init_db, guardar_reporte_compliance, buscar_reporte_compliance
 from paypal_service           import monitorear_suscripciones
+from sanctions import (
+    MatrizRiesgo,
+    actualizar_listas,
+    buscar_en_ofac,
+    screening_pep_adverse,
+    construir_reporte,
+)
 
 GEMINI_API_KEY       = os.getenv("GEMINI_API_KEY")
 FIREBASE_BUCKET      = os.getenv("FIREBASE_STORAGE_BUCKET", "agenteahc.firebasestorage.app")
@@ -40,6 +47,8 @@ CREDIT_COSTS = {
     "market_strategy":  75,
     "market_asset":     30,
     "market_audit":     75,
+    "senaclaft_riesgo": 20,
+    "senaclaft_ofac":   40,
 }
 
 
@@ -275,6 +284,62 @@ def procesar_tarea_legal_chat(db, doc_ref, data: dict):
     print(f"[LEGAL CHAT] Respuesta generada para uid={data.get('uid')}")
 
 
+def procesar_tarea_senaclaft_riesgo(db, doc_ref, data: dict):
+    """Evalúa el riesgo del cliente con la matriz SENACLAFT (7 factores, Ley 19.574)."""
+    cliente = {
+        "numero_cliente":           data.get("numero_cliente", ""),
+        "nombre_cliente":           data.get("nombre_cliente", ""),
+        "actividad_economica":      data.get("actividad_economica", ""),
+        "calidad_pep":              data.get("calidad_pep", "NO"),
+        "opera_cuenta_terceros":    data.get("opera_cuenta_terceros", "NO"),
+        "monto_significativo":      data.get("monto_significativo", "NO"),
+        "pais_residencia":          data.get("pais_residencia", ""),
+        "pais_actividad_comercial": data.get("pais_actividad_comercial", ""),
+        "productos_servicios":      data.get("productos_servicios", "NO"),
+    }
+    m = MatrizRiesgo()
+    resultado = m.evaluar(cliente)
+    doc_ref.update({
+        "status":       "COMPLETADO",
+        "resultado":    resultado,
+        "procesado_en": firestore.SERVER_TIMESTAMP,
+    })
+    _descontar_creditos(db, data.get("uid", ""), "senaclaft_riesgo")
+    print(f"[SENACLAFT RIESGO] {cliente['nombre_cliente']} → {resultado['riesgo']} ({resultado['total_ponderado']})")
+
+
+def procesar_tarea_senaclaft_ofac(db, doc_ref, data: dict):
+    """Screening OFAC SDN + PEP con listas oficiales descargadas (Módulo 1+2 sanctions)."""
+    nombre   = data.get("nombre", "").strip()
+    umbral   = int(data.get("umbral", 85))
+
+    try:
+        print(f"[SENACLAFT OFAC] Actualizando listas OFAC...")
+        ofac_db = actualizar_listas()
+    except Exception as e:
+        doc_ref.update({"status": "ERROR", "error": f"Error descargando listas OFAC: {e}"})
+        return
+
+    print(f"[SENACLAFT OFAC] Buscando '{nombre}' en OFAC (umbral={umbral})...")
+    coincidencias = buscar_en_ofac(nombre, ofac_db, umbral=umbral)
+
+    print(f"[SENACLAFT OFAC] Screening PEP/medios adversos para '{nombre}'...")
+    try:
+        resultado_pep = screening_pep_adverse(nombre)
+    except Exception as e:
+        resultado_pep = {"error": str(e), "indicadores_pep": [], "confianza": "bajo", "nota": "Error en screening PEP"}
+
+    reporte = construir_reporte(nombre, coincidencias, resultado_pep, ofac_db)
+
+    doc_ref.update({
+        "status":       "COMPLETADO",
+        "resultado":    reporte,
+        "procesado_en": firestore.SERVER_TIMESTAMP,
+    })
+    _descontar_creditos(db, data.get("uid", ""), "senaclaft_ofac")
+    print(f"[SENACLAFT OFAC] Completado: {len(coincidencias)} coincidencias para '{nombre}'")
+
+
 def procesar_tarea_generar_articulo(db, doc_ref, data: dict):
     """Genera un artículo con Gemini y lo guarda en la colección 'articulos' (sin publicar)."""
     from google import genai
@@ -402,6 +467,10 @@ def main():
                         procesar_tarea_market_audit(db, doc_ref, data)
                     elif tipo == "generar_articulo":
                         procesar_tarea_generar_articulo(db, doc_ref, data)
+                    elif tipo == "senaclaft_riesgo":
+                        procesar_tarea_senaclaft_riesgo(db, doc_ref, data)
+                    elif tipo == "senaclaft_ofac":
+                        procesar_tarea_senaclaft_ofac(db, doc_ref, data)
                     else:
                         print(f"[WARN] Tipo desconocido: {tipo}")
                         doc_ref.update({"status": "ERROR", "error": "Tipo desconocido"})
