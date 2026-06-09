@@ -1,0 +1,122 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# MATRIZ DE RIESGO — AHC Intelligence / SENACLAFT
+# Marco legal: Ley 19.574, Decreto 379/018, Ley 20.469
+#
+# INSTRUCCIONES PARA EL COMPLIANCE OFFICER:
+#   1. Al modificar criterios o pesos, incrementar el campo 'version' (semver).
+#   2. El sistema archiva automáticamente la versión anterior en cache/risk_config_history/.
+#   3. Toda evaluación histórica registra la versión exacta usada — no pierde trazabilidad.
+#   4. NO modificar versiones archivadas; son registros de auditoría.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: "1.0.0"
+fecha_vigencia: "2026-01-01"
+autor: "Compliance Officer AHC"
+notas: >
+  Versión inicial. Alineada a Decreto 379/018 (reglamentación Ley 19.574),
+  metodología basada en riesgo GAFI 2023, y Ley 20.469 (activos virtuales).
+
+# ─── VARIABLE 1: PERFIL DEL CLIENTE (peso sobre puntaje total) ───────────────
+variables:
+  cliente:
+    peso: 0.40
+    criterios:
+      persona_fisica_local:
+        puntaje: 15
+        descripcion: "Persona física residente en Uruguay con DI nacional"
+      persona_fisica_extranjera:
+        puntaje: 35
+        descripcion: "Persona física no residente — verificar fuente de fondos"
+      persona_juridica_local_nominativa:
+        puntaje: 30
+        descripcion: "SA/SRL uruguaya con acciones nominativas y beneficiario final declarado"
+      persona_juridica_acciones_portador:
+        puntaje: 85
+        descripcion: "Sociedad con acciones al portador — mayor opacidad de titularidad"
+      persona_juridica_offshore:
+        puntaje: 75
+        descripcion: "Entidad constituida en jurisdicción offshore o de baja tributación"
+      fideicomiso_trust:
+        puntaje: 70
+        descripcion: "Fideicomiso, trust o estructura de separación patrimonial similar"
+      pep_declarado:
+        puntaje: 90
+        descripcion: "PEP o familiar directo / allegado — DDI obligatoria (Art. 24 Ley 19.574)"
+      pep_posible_screening:
+        puntaje: 65
+        descripcion: "Posible PEP detectado por screening automatizado — pendiente verificación"
+      sin_datos_suficientes:
+        puntaje: 80
+        descripcion: "Cliente no aportó documentación suficiente para categorizar correctamente"
+
+  # ─── VARIABLE 2: RIESGO GEOGRÁFICO ─────────────────────────────────────────
+  geografico:
+    peso: 0.35
+    criterios:
+      uruguay:
+        puntaje: 10
+        descripcion: "Uruguay — jurisdicción local regulada por SENACLAFT"
+      mercosur_bajo:
+        puntaje: 20
+        descripcion: "Argentina, Brasil, Paraguay, Bolivia — riesgo GAFI bajo-medio"
+      latam_bajo_riesgo:
+        puntaje: 30
+        descripcion: "Chile, Colombia, Perú, Costa Rica — GAFI conforme, riesgo moderado"
+      latam_medio_riesgo:
+        puntaje: 45
+        descripcion: "Otros países LATAM no en lista GAFI — riesgo medio"
+      europa_ocde:
+        puntaje: 20
+        descripcion: "Países OCDE / UE con sistemas ALD robustos"
+      gafi_lista_gris:
+        puntaje: 70
+        descripcion: "Jurisdicción bajo monitoreo intensificado GAFI (lista gris vigente)"
+      gafi_lista_negra:
+        puntaje: 95
+        descripcion: "Jurisdicción no cooperativa GAFI (lista negra vigente) — DDI obligatoria"
+      paraiso_fiscal:
+        puntaje: 80
+        descripcion: "Paraíso fiscal: BVI, Islas Caimán, Panamá off-shore, Bahamas, Bermudas, etc."
+      sancionado_ofac:
+        puntaje: 100
+        descripcion: "País bajo sanciones OFAC activas (Irán, Corea del Norte, Cuba, Siria)"
+
+  # ─── VARIABLE 3: TIPO DE OPERACIÓN ─────────────────────────────────────────
+  operacion:
+    peso: 0.25
+    criterios:
+      transferencia_banco_local:
+        puntaje: 10
+        descripcion: "Transferencia desde banco local regulado en Uruguay"
+      transferencia_banco_internacional:
+        puntaje: 30
+        descripcion: "Transferencia desde banco internacional regulado"
+      transferencia_banco_zona_gris:
+        puntaje: 60
+        descripcion: "Transferencia desde banco de jurisdicción bajo monitoreo GAFI"
+      efectivo_monto_bajo:
+        puntaje: 55
+        descripcion: "Efectivo < USD 5.000 — no supera umbral de reporte"
+      efectivo_monto_significativo:
+        puntaje: 90
+        descripcion: "Efectivo >= USD 5.000 — DDI obligatoria, verificar origen"
+      criptoactivos:
+        puntaje: 85
+        descripcion: "Activos virtuales — DDI obligatoria (Ley 20.469, Art. 5)"
+      cheque_tercero:
+        puntaje: 55
+        descripcion: "Cheque de tercero no identificado como parte de la operación"
+      permuta_activos_reales:
+        puntaje: 50
+        descripcion: "Permuta de inmuebles u otros activos reales"
+      sin_respaldo_documentado:
+        puntaje: 80
+        descripcion: "Operación sin documentación de respaldo adecuada"
+
+# ─── UMBRALES DE CLASIFICACIÓN (puntaje ponderado 0–100) ─────────────────────
+umbrales:
+  bajo:     {min: 0,  max: 35,  etiqueta: "[Bajo]"}
+  moderado: {min: 36, max: 65,  etiqueta: "[Moderado]"}
+  alto:     {min: 66, max: 100, etiqueta: "[Alto]"}
+
+# Nota: puntaje >= 66 dispara revisión por oficial senior y posible DDI

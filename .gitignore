@@ -20,6 +20,10 @@ env/
 local-infrastructure/database/*.db
 local-infrastructure/database/*.sqlite
 
+# Caché OFAC (listas descargadas, no commitear)
+local-infrastructure/sanctions/cache/*.xml
+local-infrastructure/sanctions/cache/meta.json
+
 # Node / Firebase tools
 node_modules/
 .firebase/

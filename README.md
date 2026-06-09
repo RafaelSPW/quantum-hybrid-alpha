@@ -13,7 +13,7 @@ Arquitectura cloud-native: frontend en Firebase Hosting + procesamiento IA en Go
 ```
 FIREBASE (agenteahc)
 ──────────────────────────────────────────────────────────────
-Hosting        app.js + 11 HTML — SPA del asesor
+Hosting        app.js + 16 HTML — SPA del asesor
 Firestore      Base de datos en tiempo real (tareas, usuarios, suscripciones)
 Storage        Archivos subidos por el usuario (PDF, JPG, PNG)
 Auth           Google Sign-In (primario) + Email/Password (secundario) con verificación de email
@@ -238,11 +238,18 @@ quantum-compliance-saas/
 │       ├── market-strategy.html    Estrategia de portafolio
 │       ├── market-asset.html       Análisis de activo individual
 │       ├── market-audit.html       Auditoría de cartera
+│       ├── articulos.html          Listado del blog / artículos
+│       ├── articulo.html           Página de artículo individual
+│       ├── contacto.html           Página de contacto
+│       ├── terminos.html           Términos y condiciones
+│       ├── adminahc.html           Panel de administración
 │       └── logoqahc.png
 └── local-infrastructure/
     ├── Dockerfile                  Build para Cloud Run
     ├── entrypoint.py               Health check HTTP + arranca main_processor
     ├── cloudbuild.yaml             CI/CD con Cloud Build
+    ├── cloudbuild-buildonly.yaml   Build sin deploy (solo imagen)
+    ├── deploy.ps1                  Script de deploy PowerShell
     ├── main_processor.py           Polling loop + despacho de agentes
     ├── paypal_service.py           Monitor de suscripciones PayPal Live
     ├── requirements.txt
