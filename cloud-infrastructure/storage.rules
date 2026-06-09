@@ -20,35 +20,18 @@ service firebase.storage {
       ];
     }
 
-    // ── Documentos adjuntos — módulo Compliance KYC/AML ───────────────────────
-    // Path: documentos/{uid}/{tareaId}/{filename}
-    // Límite: 10 MB (coincide con validación frontend)
+    // ── Archivos de usuario — cubre TODOS los módulos ──────────────────────────
+    // Patrón universal: {coleccion}/{uid}/{resto...}
+    // Ejemplos cubiertos:
+    //   documentos/{uid}/{tareaId}/{filename}
+    //   documentos_forense/{uid}/{tareaId}/{filename}
+    //   contratos/{uid}/{tareaId}/{filename}
+    //   chat_docs/{uid}/{convId}/{filename}
+    //   users/{uid}/fondos/{filename}
+    //   cualquier módulo nuevo que use este patrón
+    // Límite: 25 MB (el máximo necesario; contratos pueden ser PDFs extensos)
 
-    match /documentos/{uid}/{tareaId}/{filename} {
-      allow read:  if esAutenticado() && esPropietario(uid);
-      allow write: if esAutenticado()
-                   && esPropietario(uid)
-                   && tipoPermitido()
-                   && request.resource.size <= 10 * 1024 * 1024;
-    }
-
-    // ── Documentos forense — módulo Análisis Forense ───────────────────────────
-    // Path: documentos_forense/{uid}/{tareaId}/{filename}
-    // Límite: 10 MB
-
-    match /documentos_forense/{uid}/{tareaId}/{filename} {
-      allow read:  if esAutenticado() && esPropietario(uid);
-      allow write: if esAutenticado()
-                   && esPropietario(uid)
-                   && tipoPermitido()
-                   && request.resource.size <= 10 * 1024 * 1024;
-    }
-
-    // ── Contratos — módulo Auditoría de Contratos ──────────────────────────────
-    // Path: contratos/{uid}/{tareaId}/{filename}
-    // Límite: 25 MB (contratos pueden ser PDFs de muchas páginas)
-
-    match /contratos/{uid}/{tareaId}/{filename} {
+    match /{collection}/{uid}/{rest=**} {
       allow read:  if esAutenticado() && esPropietario(uid);
       allow write: if esAutenticado()
                    && esPropietario(uid)
@@ -56,21 +39,11 @@ service firebase.storage {
                    && request.resource.size <= 25 * 1024 * 1024;
     }
 
-    // ── Fondos de origen — módulo SENACLAFT Ley 19.574 ───────────────────────
-    // Path: users/{uid}/fondos/{filename}
-    // PDFs, imágenes de documentos de origen de fondos (≤ 10 MB)
-
-    match /users/{uid}/fondos/{filename} {
-      allow read:  if esAutenticado() && esPropietario(uid);
-      allow write: if esAutenticado()
-                   && esPropietario(uid)
-                   && request.resource.size <= 10 * 1024 * 1024;
-    }
-
-    // ── Listas de sanciones — escritura solo para administrador ───────────────
-    // Path: ofac/{file}    — XMLs de OFAC (SDN, Consolidated) y ONU
-    // Path: config/{file}  — Archivos de configuración (matriz_riesgo_config.json)
+    // ── Listas de sanciones y config — solo administrador ─────────────────────
+    // Path: ofac/{file}   — XMLs de OFAC (SDN, Consolidated) y ONU
+    // Path: config/{file} — Archivos de configuración (matriz_riesgo_config.json)
     // Cloud Run usa Firebase Admin SDK (bypassa estas reglas para lectura).
+    // Estas rutas son de un solo segmento: NO coinciden con la regla de usuario.
 
     // UID del administrador: lVkD2tQbe7Y8FZuCudrgRZrUyOG2
     match /ofac/{file} {

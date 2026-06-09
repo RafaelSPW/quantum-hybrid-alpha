@@ -24,7 +24,7 @@ function safeUrl(url) {
 }
 
 // Costo de créditos por tipo de tarea
-const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 30, forensic: 25, market_strategy: 75, market_asset: 30, market_audit: 75, senaclaft_riesgo: 20, senaclaft_ofac: 40, senaclaft_fondos: 30 };
+const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 30, forensic: 25, market_strategy: 75, market_asset: 30, market_audit: 75, senaclaft_riesgo: 20, senaclaft_ofac: 40, senaclaft_fondos: 30, senaclaft_legajo: 10 };
 
 // PayPal Live — Client ID público (frontend)
 const PAYPAL_CLIENT_ID = "ASgYio7YMJjMUEPh8cBeG8wjVSHQrblcozu-wdWN_YRyZeNahEoALcX0IVBxLSx2WUqhj89vwDICR_GT";
@@ -3004,6 +3004,11 @@ var _unsubSenaclaftRiesgo  = null;
 var _unsubSenaclaftOfac    = null;
 var _unsubSenaclaftFondos  = null;
 
+// Task IDs de la sesión actual — usados para generar el legajo
+window._srLastTaskId = null;  // riesgo
+window._soLastTaskId = null;  // ofac
+window._sfLastTaskId = null;  // fondos (opcional)
+
 async function enviarSenaclaftRiesgo(event) {
   event.preventDefault();
   var user = auth.currentUser;
@@ -3036,6 +3041,7 @@ async function enviarSenaclaftRiesgo(event) {
   if (estado) { estado.className = "estado-msg activo"; estado.innerHTML = '<span class="ahc-spinner"></span>Evaluando riesgo...'; }
 
   var ref = await db.collection("tareas_pendientes").add(datos);
+  window._srLastTaskId = ref.id;
 
   var resBox = document.getElementById("sr-resultado");
   if (resBox) resBox.style.display = "none";
@@ -3046,6 +3052,7 @@ async function enviarSenaclaftRiesgo(event) {
     if (d.status === "COMPLETADO") {
       if (_unsubSenaclaftRiesgo) { _unsubSenaclaftRiesgo(); _unsubSenaclaftRiesgo = null; }
       if (estado) { estado.className = "estado-msg"; estado.textContent = ""; }
+      _actualizarIndicadoresLegajo();
       renderizarSenaclaftRiesgo(d.resultado);
     } else if (d.status === "ERROR") {
       if (_unsubSenaclaftRiesgo) { _unsubSenaclaftRiesgo(); _unsubSenaclaftRiesgo = null; }
@@ -3141,6 +3148,7 @@ async function enviarSenaclaftOfac(event) {
     umbral:    umbral,
     creado_en: firebase.firestore.FieldValue.serverTimestamp(),
   });
+  window._soLastTaskId = ref.id;
 
   var resBox = document.getElementById("so-resultado");
   if (resBox) resBox.style.display = "none";
@@ -3153,6 +3161,7 @@ async function enviarSenaclaftOfac(event) {
       if (estado) { estado.className = "estado-msg"; estado.textContent = ""; }
       var soBtnC = document.querySelector("#tab-ofac .btn-submit");
       if (soBtnC) { soBtnC.disabled = false; soBtnC.textContent = "Ejecutar Screening OFAC"; }
+      _actualizarIndicadoresLegajo();
       renderizarSenaclaftOfac(d.resultado, nombre);
     } else if (d.status === "ERROR") {
       if (_unsubSenaclaftOfac) { _unsubSenaclaftOfac(); _unsubSenaclaftOfac = null; }
@@ -3289,6 +3298,9 @@ async function enviarSenaclaftFondos(event) {
     creado_en:                firebase.firestore.FieldValue.serverTimestamp(),
   });
 
+  window._sfLastTaskId = ref.id;
+  _actualizarIndicadoresLegajo();
+
   _unsubSenaclaftFondos = db.collection("tareas_pendientes").doc(ref.id).onSnapshot(function(snap) {
     var d = snap.data();
     if (!d) return;
@@ -3297,6 +3309,7 @@ async function enviarSenaclaftFondos(event) {
       if (estado) { estado.className = "estado-msg"; estado.textContent = ""; }
       var sfBtnC = document.querySelector("#tab-fondos .btn-submit");
       if (sfBtnC) { sfBtnC.disabled = false; sfBtnC.textContent = "Analizar Documento"; }
+      _actualizarIndicadoresLegajo();
       renderizarSenaclaftFondos(d.resultado, (document.getElementById("sf-nombre") || {}).value || "");
     } else if (d.status === "ERROR") {
       if (_unsubSenaclaftFondos) { _unsubSenaclaftFondos(); _unsubSenaclaftFondos = null; }
@@ -3382,4 +3395,102 @@ function renderizarSenaclaftFondos(r, nombreCliente) {
   if (ph) ph.style.display = "none";
   resBox.style.display = "block";
   resBox.scrollIntoView({ behavior: "smooth" });
+}
+
+// ── SENACLAFT — GENERAR LEGAJO ─────────────────────────────────────────────────
+
+function _actualizarIndicadoresLegajo() {
+  var riesgoEl = document.getElementById("lgj-ind-riesgo");
+  var ofacEl   = document.getElementById("lgj-ind-ofac");
+  var fondosEl = document.getElementById("lgj-ind-fondos");
+  var btnEl    = document.getElementById("lgj-btn-generar");
+  var manualRiesgo  = document.getElementById("lgj-task-riesgo");
+  var manualOfac    = document.getElementById("lgj-task-ofac");
+  var manualFondos  = document.getElementById("lgj-task-fondos");
+
+  var riesgoId = (manualRiesgo && manualRiesgo.value.trim()) || window._srLastTaskId;
+  var ofacId   = (manualOfac   && manualOfac.value.trim())   || window._soLastTaskId;
+  var fondosId = (manualFondos && manualFondos.value.trim()) || window._sfLastTaskId;
+
+  var ok   = 'style="color:#1a6e3a;font-weight:600"';
+  var nok  = 'style="color:#888"';
+
+  if (riesgoEl) riesgoEl.innerHTML = riesgoId
+    ? '<span ' + ok  + '>✓ Capturada</span> <span style="font-size:0.72rem;color:#aaa">(' + riesgoId.substring(0,8) + '…)</span>'
+    : '<span ' + nok + '>— Pendiente</span>';
+
+  if (ofacEl) ofacEl.innerHTML = ofacId
+    ? '<span ' + ok  + '>✓ Capturado</span> <span style="font-size:0.72rem;color:#aaa">(' + ofacId.substring(0,8) + '…)</span>'
+    : '<span ' + nok + '>— Pendiente</span>';
+
+  if (fondosEl) fondosEl.innerHTML = fondosId
+    ? '<span ' + ok  + '>✓ Capturado</span> <span style="font-size:0.72rem;color:#aaa">(' + fondosId.substring(0,8) + '…)</span>'
+    : '<span style="color:#888">— Opcional</span>';
+
+  if (btnEl) btnEl.disabled = !(riesgoId && ofacId);
+}
+
+async function enviarSenaclaftLegajo() {
+  var user = auth.currentUser;
+  if (!user) { loginGoogle(); return; }
+
+  var idClienteEl   = document.getElementById("lgj-id-cliente");
+  var manualRiesgo  = document.getElementById("lgj-task-riesgo");
+  var manualOfac    = document.getElementById("lgj-task-ofac");
+  var manualFondos  = document.getElementById("lgj-task-fondos");
+  var estadoEl      = document.getElementById("lgj-estado-generar");
+
+  var idCliente = idClienteEl ? idClienteEl.value.trim() : "";
+  var riesgoId  = (manualRiesgo && manualRiesgo.value.trim()) || window._srLastTaskId;
+  var ofacId    = (manualOfac   && manualOfac.value.trim())   || window._soLastTaskId;
+  var fondosId  = (manualFondos && manualFondos.value.trim()) || window._sfLastTaskId || null;
+
+  if (!idCliente) { alert("El ID de cliente es obligatorio (ej: CLI-GARCIA-001)."); return; }
+  if (!riesgoId)  { alert("Falta el ID de la tarea de Evaluación de Riesgo."); return; }
+  if (!ofacId)    { alert("Falta el ID de la tarea de Screening OFAC."); return; }
+
+  if (!verificarCreditos("senaclaft_legajo")) return;
+
+  var btn = document.getElementById("lgj-btn-generar");
+  if (btn) { btn.disabled = true; btn.textContent = "Generando…"; }
+  if (estadoEl) { estadoEl.className = "estado-msg activo"; estadoEl.innerHTML = '<span class="ahc-spinner"></span>Construyendo legajo…'; }
+
+  var datos = {
+    tipo:               "senaclaft_legajo",
+    status:             "PENDIENTE",
+    uid:                user.uid,
+    id_cliente:         idCliente,
+    riesgo_task_id:     riesgoId,
+    screening_task_id:  ofacId,
+    creado_en:          firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  if (fondosId) datos.fondos_task_id = fondosId;
+
+  var ref = await db.collection("tareas_pendientes").add(datos);
+
+  db.collection("tareas_pendientes").doc(ref.id).onSnapshot(function(snap) {
+    var d = snap.data();
+    if (!d) return;
+    if (d.status === "COMPLETADO") {
+      if (estadoEl) { estadoEl.className = "estado-msg"; estadoEl.textContent = ""; }
+      if (btn) { btn.disabled = false; btn.textContent = "Generar Legajo"; }
+      var r = d.resultado || {};
+      if (estadoEl) {
+        estadoEl.className = "estado-msg";
+        estadoEl.innerHTML = '<span style="color:#1a6e3a;font-weight:600">✓ Legajo generado correctamente.</span>'
+          + ' Estado: <strong>' + escHtml(r.estado || "—") + '</strong>'
+          + ' &nbsp;·&nbsp; ID: <code style="font-size:0.8rem">' + escHtml(r.id_evaluacion || "—") + '</code>';
+      }
+      // Resetear task IDs de sesión para evitar re-uso accidental
+      window._srLastTaskId = null;
+      window._soLastTaskId = null;
+      window._sfLastTaskId = null;
+      // Recargar lista
+      if (window._lgjUnsub) { window._lgjUnsub(); window._lgjUnsub = null; }
+      if (typeof iniciarLegajosTab === "function") iniciarLegajosTab();
+    } else if (d.status === "ERROR") {
+      if (estadoEl) { estadoEl.className = "estado-msg"; estadoEl.style.color = "#b02020"; estadoEl.textContent = "Error: " + (d.error || "Error desconocido"); }
+      if (btn) { btn.disabled = false; btn.textContent = "Generar Legajo"; }
+    }
+  });
 }

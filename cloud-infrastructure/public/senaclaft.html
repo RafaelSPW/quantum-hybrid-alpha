@@ -487,6 +487,62 @@
     <div class="page-content">
       <div style="max-width:1280px;margin:0 auto">
 
+        <!-- ── Panel: Generar nuevo legajo ──────────────────────────────── -->
+        <div style="background:#f7fafd;border:1px solid #d0dce8;border-radius:8px;padding:20px 24px;margin-bottom:28px">
+          <div style="font-size:1rem;font-weight:700;color:var(--text-head);margin-bottom:4px">Generar nuevo legajo</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:16px">Consolida una evaluación de riesgo + screening OFAC (y opcionalmente análisis de fondos) en un legajo unificado. Las evaluaciones deben haberse realizado en esta sesión o podés ingresar los IDs manualmente.</div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+            <div>
+              <label style="font-size:0.78rem;color:var(--text-dim);font-weight:600;display:block;margin-bottom:4px">Evaluación de Riesgo</label>
+              <div id="lgj-ind-riesgo" style="font-size:0.83rem;color:#888;margin-bottom:4px">— Pendiente</div>
+            </div>
+            <div>
+              <label style="font-size:0.78rem;color:var(--text-dim);font-weight:600;display:block;margin-bottom:4px">Screening OFAC</label>
+              <div id="lgj-ind-ofac" style="font-size:0.83rem;color:#888;margin-bottom:4px">— Pendiente</div>
+            </div>
+            <div>
+              <label style="font-size:0.78rem;color:var(--text-dim);font-weight:600;display:block;margin-bottom:4px">Origen de Fondos</label>
+              <div id="lgj-ind-fondos" style="font-size:0.83rem;color:#888;margin-bottom:4px">— Opcional</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+            <div style="flex:1;min-width:180px">
+              <label style="font-size:0.78rem;color:var(--text-dim);font-weight:600;display:block;margin-bottom:4px">ID de cliente *</label>
+              <input id="lgj-id-cliente" type="text" placeholder="Ej: CLI-GARCIA-001" style="width:100%;padding:7px 10px;border:1px solid #c8d6e8;border-radius:4px;font-size:0.88rem;box-sizing:border-box">
+            </div>
+            <div>
+              <button id="lgj-btn-generar" onclick="enviarSenaclaftLegajo()" disabled
+                style="background:#1a4a7a;color:#fff;border:none;border-radius:4px;padding:8px 20px;font-size:0.88rem;font-weight:600;cursor:pointer">
+                Generar Legajo
+              </button>
+              <style>#lgj-btn-generar:disabled{opacity:.4;cursor:not-allowed}#lgj-btn-generar:not(:disabled):hover{background:#163d66}</style>
+            </div>
+          </div>
+
+          <!-- IDs manuales (para sesiones cruzadas) -->
+          <details style="margin-top:4px">
+            <summary style="font-size:0.78rem;color:var(--text-dim);cursor:pointer;user-select:none">Ingresar IDs de tarea manualmente</summary>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">
+              <div>
+                <label style="font-size:0.75rem;color:var(--text-dim);display:block;margin-bottom:3px">ID tarea Riesgo</label>
+                <input id="lgj-task-riesgo" type="text" placeholder="ID Firestore..." oninput="_actualizarIndicadoresLegajo()" style="width:100%;padding:6px 9px;border:1px solid #c8d6e8;border-radius:4px;font-size:0.82rem;box-sizing:border-box;font-family:monospace">
+              </div>
+              <div>
+                <label style="font-size:0.75rem;color:var(--text-dim);display:block;margin-bottom:3px">ID tarea OFAC</label>
+                <input id="lgj-task-ofac" type="text" placeholder="ID Firestore..." oninput="_actualizarIndicadoresLegajo()" style="width:100%;padding:6px 9px;border:1px solid #c8d6e8;border-radius:4px;font-size:0.82rem;box-sizing:border-box;font-family:monospace">
+              </div>
+              <div>
+                <label style="font-size:0.75rem;color:var(--text-dim);display:block;margin-bottom:3px">ID tarea Fondos (opcional)</label>
+                <input id="lgj-task-fondos" type="text" placeholder="ID Firestore..." oninput="_actualizarIndicadoresLegajo()" style="width:100%;padding:6px 9px;border:1px solid #c8d6e8;border-radius:4px;font-size:0.82rem;box-sizing:border-box;font-family:monospace">
+              </div>
+            </div>
+          </details>
+
+          <div id="lgj-estado-generar" class="estado-msg" style="margin-top:10px"></div>
+        </div>
+
         <div id="lgj-lista-wrap">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
             <div>

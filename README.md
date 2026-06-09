@@ -497,6 +497,28 @@ El PDF incluye sección CONFIDENCIAL separada (alertas internas) que no puede se
 
 ## Registro de cambios
 
+### 9 Junio 2026 — Generador de legajos + Storage wildcard + fix chat PDF
+
+**Frontend `senaclaft.html` + `app.js`:**
+- Panel "Generar nuevo legajo" en el tab Legajos: captura automática de task IDs de riesgo/OFAC/fondos de la sesión actual; indicadores en tiempo real (✓ verde / pendiente); campo ID de cliente; sección colapsable para ingresar IDs manualmente (sesiones cruzadas)
+- `enviarSenaclaftLegajo()`: envía tarea `senaclaft_legajo` al backend, escucha respuesta via `onSnapshot` y recarga la lista de legajos al completar
+- `CREDIT_COSTS` del frontend incluye `senaclaft_legajo: 10`
+- `_actualizarIndicadoresLegajo()`: actualiza los tres indicadores de sesión y habilita/deshabilita el botón de generación
+
+**Firestore:**
+- Índice compuesto `legajos` (`owner_uid ASC + creado_en DESC`) deployado correctamente — resuelve query que mostraba solo 1 resultado
+
+**Storage Rules — wildcard universal:**
+- Regla `/{collection}/{uid}/{rest=**}` reemplaza las 4 reglas específicas por módulo — cubre cualquier módulo nuevo sin modificar las rules
+- `ofac/` y `config/` (1 segmento) quedan fuera del wildcard: solo accesibles por admin
+- Límite: 25 MB; tipos: PDF, JPEG, PNG
+
+**Módulo Legal Chat:**
+- Corregido: path `chat_docs/{uid}/{convId}/{filename}` ahora cubierto por el wildcard de Storage
+- `agent_legal_chat.py` system prompt: cuando hay documento adjunto, analizarlo directamente sin pedir más contexto al usuario
+
+---
+
 ### 9 Junio 2026 — Origen de Fondos + singleton OFAC 24h + deploy Cloud Run rev 00006
 
 **Cloud Run:** revision `quantum-processor-00006-g9v` activa.
