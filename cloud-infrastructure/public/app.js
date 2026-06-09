@@ -24,7 +24,7 @@ function safeUrl(url) {
 }
 
 // Costo de créditos por tipo de tarea
-const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 30, forensic: 25, market_strategy: 75, market_asset: 30, market_audit: 75, senaclaft_riesgo: 20, senaclaft_ofac: 40 };
+const CREDIT_COSTS = { compliance: 50, markets: 30, contracts: 75, legal_chat: 30, forensic: 25, market_strategy: 75, market_asset: 30, market_audit: 75, senaclaft_riesgo: 20, senaclaft_ofac: 40, senaclaft_fondos: 30 };
 
 // PayPal Live — Client ID público (frontend)
 const PAYPAL_CLIENT_ID = "ASgYio7YMJjMUEPh8cBeG8wjVSHQrblcozu-wdWN_YRyZeNahEoALcX0IVBxLSx2WUqhj89vwDICR_GT";
@@ -3000,8 +3000,9 @@ auth.onAuthStateChanged(function(user) {
 
 // ── SENACLAFT — EVALUACIÓN DE RIESGO ─────────────────────────────────────────
 
-var _unsubSenaclaftRiesgo = null;
-var _unsubSenaclaftOfac   = null;
+var _unsubSenaclaftRiesgo  = null;
+var _unsubSenaclaftOfac    = null;
+var _unsubSenaclaftFondos  = null;
 
 async function enviarSenaclaftRiesgo(event) {
   event.preventDefault();
@@ -3235,6 +3236,150 @@ function renderizarSenaclaftOfac(r, nombreConsultado) {
     + escHtml(r.nota_metodologica || "Análisis de medios adversos y fuentes abiertas mediante IA. No sustituye la consulta directa a listas oficiales.")
     + '</div>';
 
+  resBox.style.display = "block";
+  resBox.scrollIntoView({ behavior: "smooth" });
+}
+
+// ─── SENACLAFT — Análisis de Origen de Fondos ────────────────────────────────
+
+async function enviarSenaclaftFondos(event) {
+  event.preventDefault();
+  var user = auth.currentUser;
+  if (!user) { loginGoogle(); return; }
+  if (!verificarCreditos("senaclaft_fondos")) return;
+
+  if (_unsubSenaclaftFondos) { _unsubSenaclaftFondos(); _unsubSenaclaftFondos = null; }
+
+  var archivo = (document.getElementById("sf-archivo") || {}).files;
+  if (!archivo || !archivo[0]) { alert("Seleccione un archivo PDF, JPG o PNG."); return; }
+  var file = archivo[0];
+
+  var sfBtn  = document.querySelector("#tab-fondos .btn-submit");
+  var estado = document.getElementById("sf-estado");
+  if (sfBtn)  { sfBtn.disabled = true; sfBtn.textContent = "Subiendo..."; }
+  if (estado) { estado.className = "estado-msg activo"; estado.innerHTML = '<span class="ahc-spinner"></span>Subiendo documento...'; }
+
+  var storagePath = "users/" + user.uid + "/fondos/" + Date.now() + "_" + file.name;
+  try {
+    var storageRef = storage.ref(storagePath);
+    await storageRef.put(file);
+  } catch (e) {
+    if (estado) { estado.style.color = "#b02020"; estado.textContent = "Error subiendo el archivo: " + e.message; }
+    if (sfBtn)  { sfBtn.disabled = false; sfBtn.textContent = "Analizar Documento"; }
+    return;
+  }
+
+  if (sfBtn)  { sfBtn.textContent = "Procesando..."; }
+  if (estado) { estado.innerHTML = '<span class="ahc-spinner"></span>Extrayendo montos y analizando congruencia...'; }
+
+  var resBox = document.getElementById("sf-resultado");
+  if (resBox) resBox.style.display = "none";
+
+  var ref = await db.collection("tareas_pendientes").add({
+    tipo:                     "senaclaft_fondos",
+    status:                   "PENDIENTE",
+    uid:                      user.uid,
+    nombre_cliente:           (document.getElementById("sf-nombre") || {}).value || "",
+    id_cliente:               (document.getElementById("sf-numero") || {}).value || "",
+    actividad_economica:      (document.getElementById("sf-actividad") || {}).value || "",
+    ingresos_anuales_usd:     parseFloat((document.getElementById("sf-ingresos") || {}).value || "0") || 0,
+    patrimonio_declarado_usd: parseFloat((document.getElementById("sf-patrimonio") || {}).value || "0") || 0,
+    archivo_storage_path:     storagePath,
+    archivo_nombre:           file.name,
+    creado_en:                firebase.firestore.FieldValue.serverTimestamp(),
+  });
+
+  _unsubSenaclaftFondos = db.collection("tareas_pendientes").doc(ref.id).onSnapshot(function(snap) {
+    var d = snap.data();
+    if (!d) return;
+    if (d.status === "COMPLETADO") {
+      if (_unsubSenaclaftFondos) { _unsubSenaclaftFondos(); _unsubSenaclaftFondos = null; }
+      if (estado) { estado.className = "estado-msg"; estado.textContent = ""; }
+      var sfBtnC = document.querySelector("#tab-fondos .btn-submit");
+      if (sfBtnC) { sfBtnC.disabled = false; sfBtnC.textContent = "Analizar Documento"; }
+      renderizarSenaclaftFondos(d.resultado, (document.getElementById("sf-nombre") || {}).value || "");
+    } else if (d.status === "ERROR") {
+      if (_unsubSenaclaftFondos) { _unsubSenaclaftFondos(); _unsubSenaclaftFondos = null; }
+      if (estado) { estado.style.color = "#b02020"; estado.textContent = "Error: " + (d.error || "Error desconocido"); }
+      var sfBtnE = document.querySelector("#tab-fondos .btn-submit");
+      if (sfBtnE) { sfBtnE.disabled = false; sfBtnE.textContent = "Analizar Documento"; }
+    }
+  });
+}
+
+function renderizarSenaclaftFondos(r, nombreCliente) {
+  var resBox = document.getElementById("sf-resultado");
+  if (!resBox) return;
+
+  var bandera = r.bandera_incongruencia;
+  var ratio   = parseFloat(r.ratio_discrepancia || 0);
+  var color   = bandera ? "#b02020" : "#1a6e3a";
+  var bgColor = bandera ? "#fde8e8" : "#f0faf4";
+  var label   = bandera ? "POSIBLE INCONGRUENCIA — REVISAR" : "SIN INCONGRUENCIA DETECTADA";
+
+  var montos = r.montos_confirmados || [];
+  var montosHtml = "";
+  if (montos.length) {
+    montosHtml = '<div class="lgj-section-title">Montos extraídos del documento</div>'
+      + '<div style="font-size:0.78rem;color:#8a6000;background:#fff8e6;border:1px solid #e0c060;border-radius:3px;padding:7px 12px;margin-bottom:8px">'
+      + 'Montos extraídos automáticamente. El oficial de cumplimiento debe verificarlos antes de incorporarlos al legajo.'
+      + '</div>'
+      + '<table style="width:100%;font-size:0.83rem;border-collapse:collapse">'
+      + '<thead><tr style="color:var(--text-dim);font-size:0.75rem;text-transform:uppercase;letter-spacing:.5px">'
+      + '<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Descripción</th>'
+      + '<th style="text-align:right;padding:4px 8px;border-bottom:1px solid var(--border)">Monto</th>'
+      + '<th style="text-align:right;padding:4px 8px;border-bottom:1px solid var(--border)">Equiv. USD</th>'
+      + '<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Período</th>'
+      + '</tr></thead><tbody>'
+      + montos.map(function(m) {
+          return '<tr style="border-bottom:1px solid var(--border)">'
+            + '<td style="padding:5px 8px">' + escHtml(m.descripcion || "—") + '</td>'
+            + '<td style="padding:5px 8px;text-align:right;font-weight:600">' + escHtml(m.monto || "—") + ' ' + escHtml(m.moneda || "") + '</td>'
+            + '<td style="padding:5px 8px;text-align:right">USD ' + escHtml(m.equiv_usd || "—") + '</td>'
+            + '<td style="padding:5px 8px;color:var(--text-dim)">' + escHtml(m.periodo || "—") + '</td>'
+            + '</tr>';
+        }).join("")
+      + '<tr style="background:var(--navy-lite);font-weight:700">'
+      + '<td style="padding:6px 8px" colspan="2">Total documentado</td>'
+      + '<td style="padding:6px 8px;text-align:right">USD ' + escHtml(r.total_documentado_usd || "0") + '</td>'
+      + '<td></td></tr>'
+      + '</tbody></table>';
+  } else {
+    montosHtml = '<div style="margin-top:12px;padding:10px 14px;background:var(--navy-lite);border:1px solid var(--border);border-radius:4px;font-size:0.85rem;color:var(--text-dim)">'
+      + 'No se detectaron montos en el documento. Verifique el archivo o consulte con el cliente.'
+      + '</div>';
+  }
+
+  var advsHtml = "";
+  var advs = r.advertencias_extraccion || [];
+  if (advs.length) {
+    advsHtml = '<div class="lgj-section-title" style="margin-top:14px">Advertencias de extracción</div>'
+      + advs.map(function(a){ return '<div style="font-size:0.82rem;color:#8a6000;margin-bottom:4px">&#9888; ' + escHtml(a) + '</div>'; }).join("");
+  }
+
+  resBox.innerHTML =
+    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">'
+    + '<div style="font-size:0.95rem;font-weight:800;color:' + color + ';background:' + bgColor + ';padding:6px 14px;border-radius:4px">'
+    + escHtml(label) + '</div>'
+    + (nombreCliente ? '<div style="font-size:0.9rem;color:#555">Cliente: <strong>' + escHtml(nombreCliente) + '</strong></div>' : '')
+    + '</div>'
+    + '<div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:10px">'
+    + 'Método: <strong>' + escHtml(r.metodo_extraccion || "—") + '</strong>'
+    + '&nbsp;&middot;&nbsp;Confianza: <strong>' + escHtml(r.confianza_extraccion || "—") + '</strong>'
+    + '&nbsp;&middot;&nbsp;Ratio: <strong>' + ratio.toFixed(2) + '&times;</strong> del perfil declarado'
+    + '</div>'
+    + montosHtml
+    + '<div class="lgj-section-title" style="margin-top:14px">Análisis de congruencia</div>'
+    + '<div style="font-size:0.85rem;background:var(--navy-lite);border:1px solid var(--border);border-radius:4px;padding:10px 14px">'
+    + escHtml(r.descripcion_bandera || r.consistencia_perfil_origen || "—")
+    + '</div>'
+    + advsHtml
+    + '<div style="margin-top:14px;font-size:0.78rem;color:#888;border-top:1px solid #eef2f8;padding-top:10px">'
+    + escHtml(r.nota || "Análisis automático de apoyo. La determinación final es exclusiva del oficial de cumplimiento.")
+    + '</div>';
+
+  var ph = document.getElementById("sf-placeholder");
+  if (ph) ph.style.display = "none";
   resBox.style.display = "block";
   resBox.scrollIntoView({ behavior: "smooth" });
 }

@@ -7,6 +7,7 @@ Servicio oficial: https://sanctionslistservice.ofac.treas.gov/
 import io
 import json
 import logging
+import threading
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -34,8 +35,14 @@ SDN_CACHE_PATH      = CACHE_DIR / "sdn.xml"
 CONS_CACHE_PATH     = CACHE_DIR / "cons.xml"
 META_PATH           = CACHE_DIR / "meta.json"
 
-REFRESH_HORAS       = 12
+REFRESH_HORAS       = 24   # una descarga por día; compartida por todos los clientes
 TIMEOUT_SEG         = 60
+
+# Singleton en memoria: se parsea el XML una sola vez por ciclo de 24h.
+# Todos los requests del día reutilizan el mismo objeto sin leer disco.
+_DB_LOCK:     threading.Lock          = threading.Lock()
+_DB_INSTANCE: Optional["OFACDatabase"] = None
+_DB_INSTANCE_TS: str                  = ""  # coincide con meta["descargado_el"] cuando es válido
 
 
 # ─── Estructuras de datos ──────────────────────────────────────────────────────
@@ -226,55 +233,63 @@ def _cache_vigente() -> bool:
 
 def actualizar_listas(forzar: bool = False) -> OFACDatabase:
     """
-    Descarga las listas OFAC si el caché venció (o si forzar=True).
-    Retorna OFACDatabase listo para consultas de matching.
-    Loguea timestamp y status HTTP de cada descarga.
+    Descarga las listas OFAC si el caché de disco venció (o forzar=True).
+    Parsea el XML solo cuando el timestamp de disco cambia; todos los
+    clientes dentro del mismo proceso reutilizan el objeto en memoria.
     """
+    global _DB_INSTANCE, _DB_INSTANCE_TS
+
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    meta = _leer_meta()
 
-    if not forzar and _cache_vigente():
-        logger.info("Caché OFAC vigente (descargado %s) — omitiendo descarga", meta.get("descargado_el"))
-    else:
-        ahora = datetime.utcnow().isoformat()
-        meta["descargado_el"] = ahora
-        meta["fuentes"] = {}
+    with _DB_LOCK:
+        # ── Paso 1: decidir si hay que re-descargar de OFAC ──────────────
+        if forzar or not _cache_vigente():
+            ahora = datetime.utcnow().isoformat()
+            meta = {"descargado_el": ahora, "fuentes": {}}
+            for nombre, url, fallback, cache_path in [
+                ("SDN",          OFAC_SDN_URL,  OFAC_SDN_FALLBACK,  SDN_CACHE_PATH),
+                ("Consolidated", OFAC_CONS_URL, OFAC_CONS_FALLBACK, CONS_CACHE_PATH),
+            ]:
+                xml_bytes, status = _descargar_xml(url, fallback)
+                meta["fuentes"][nombre] = {"status_http": status, "timestamp": ahora}
+                if xml_bytes:
+                    cache_path.write_bytes(xml_bytes)
+                    logger.info("Lista %s → caché actualizado (%d bytes, HTTP %d)", nombre, len(xml_bytes), status)
+                else:
+                    logger.error("Lista %s → descarga fallida (HTTP %d)", nombre, status)
+            _guardar_meta(meta)
 
-        fuentes = [
-            ("SDN",          OFAC_SDN_URL,  OFAC_SDN_FALLBACK,  SDN_CACHE_PATH),
-            ("Consolidated", OFAC_CONS_URL, OFAC_CONS_FALLBACK, CONS_CACHE_PATH),
-        ]
-        for nombre, url, fallback, cache_path in fuentes:
-            xml_bytes, status = _descargar_xml(url, fallback)
-            meta["fuentes"][nombre] = {"status_http": status, "timestamp": ahora}
-            if xml_bytes:
-                cache_path.write_bytes(xml_bytes)
-                logger.info("Lista %s → caché actualizado (%d bytes, HTTP %d)", nombre, len(xml_bytes), status)
-            else:
-                logger.error("Lista %s → descarga fallida (HTTP %d)", nombre, status)
+        # ── Paso 2: si el singleton en memoria es del mismo ciclo, reusarlo ──
+        disco_ts = _leer_meta().get("descargado_el", "")
+        if _DB_INSTANCE is not None and _DB_INSTANCE_TS == disco_ts:
+            logger.info(
+                "OFACDatabase en memoria vigente — %d entradas, ts=%s",
+                len(_DB_INSTANCE.entradas), disco_ts,
+            )
+            return _DB_INSTANCE
 
-        _guardar_meta(meta)
+        # ── Paso 3: parsear XML desde disco (una vez por ciclo de 24h) ──────
+        db = OFACDatabase(descargado_el=disco_ts)
+        for nombre, cache_path, lista_origen in [
+            ("SDN",          SDN_CACHE_PATH,  "SDN"),
+            ("Consolidated", CONS_CACHE_PATH, "Consolidated"),
+        ]:
+            if not cache_path.exists():
+                logger.warning("Caché %s no encontrado en disco", nombre)
+                db.fuentes_error.append(nombre)
+                continue
+            try:
+                entradas, pub_date = _parsear_lista(cache_path.read_bytes(), lista_origen)
+                db.entradas.extend(entradas)
+                if pub_date:
+                    db.publicado_el = pub_date
+                db.fuentes_ok.append(nombre)
+                logger.info("Lista %s cargada: %d entradas (publicada: %s)", nombre, len(entradas), pub_date)
+            except Exception as exc:
+                logger.error("Error parseando lista %s: %s", nombre, exc)
+                db.fuentes_error.append(nombre)
 
-    # Cargar desde caché local
-    db = OFACDatabase(descargado_el=meta.get("descargado_el", ""))
-
-    for nombre, cache_path, lista_origen in [
-        ("SDN",          SDN_CACHE_PATH,  "SDN"),
-        ("Consolidated", CONS_CACHE_PATH, "Consolidated"),
-    ]:
-        if not cache_path.exists():
-            logger.warning("Caché %s no encontrado en disco", nombre)
-            db.fuentes_error.append(nombre)
-            continue
-        try:
-            entradas, pub_date = _parsear_lista(cache_path.read_bytes(), lista_origen)
-            db.entradas.extend(entradas)
-            if pub_date:
-                db.publicado_el = pub_date
-            db.fuentes_ok.append(nombre)
-            logger.info("Lista %s cargada: %d entradas (publicada: %s)", nombre, len(entradas), pub_date)
-        except Exception as exc:
-            logger.error("Error parseando lista %s: %s", nombre, exc)
-            db.fuentes_error.append(nombre)
-
-    return db
+        _DB_INSTANCE    = db
+        _DB_INSTANCE_TS = disco_ts
+        logger.info("OFACDatabase actualizado en memoria — %d entradas totales", len(db.entradas))
+        return db

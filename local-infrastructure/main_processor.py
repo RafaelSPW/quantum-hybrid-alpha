@@ -20,6 +20,7 @@ from agents.agent_contracts   import QuantumContractsAgent
 from agents.agent_legal_chat  import QuantumLegalChatAgent
 from database.local_cache     import init_db, guardar_reporte_compliance, buscar_reporte_compliance
 from paypal_service           import monitorear_suscripciones
+from decimal import Decimal
 from sanctions import (
     MatrizRiesgo,
     actualizar_listas,
@@ -27,6 +28,9 @@ from sanctions import (
     screening_pep_adverse,
     construir_reporte,
     construir_legajo_unificado,
+    extraer_documento,
+    analizar_fondos,
+    PerfilCliente,
     KMSNotConfiguredError,
 )
 
@@ -51,6 +55,7 @@ CREDIT_COSTS = {
     "market_audit":      75,
     "senaclaft_riesgo":  20,
     "senaclaft_ofac":    40,
+    "senaclaft_fondos":  30,
     "senaclaft_legajo":  10,   # agregación de resultados ya pagados
 }
 
@@ -343,6 +348,63 @@ def procesar_tarea_senaclaft_ofac(db, doc_ref, data: dict):
     print(f"[SENACLAFT OFAC] Completado: {len(coincidencias)} coincidencias para '{nombre}'")
 
 
+def procesar_tarea_senaclaft_fondos(db, doc_ref, data: dict):
+    """Extrae montos de un PDF de origen de fondos y evalúa congruencia con el perfil declarado."""
+    uid          = data.get("uid", "")
+    storage_path = data.get("archivo_storage_path", "")
+    if not storage_path:
+        doc_ref.update({"status": "ERROR", "error": "archivo_storage_path requerido para análisis de fondos"})
+        return
+
+    archivo_local = _descargar_archivo(storage_path, data.get("archivo_nombre", "fondos.pdf"))
+    if not archivo_local:
+        doc_ref.update({"status": "ERROR", "error": "No se pudo descargar el archivo desde Storage"})
+        return
+
+    try:
+        extraccion = extraer_documento(archivo_local)
+        extraccion.confirmado_por_investigador = True  # el investigador envió conscientemente
+
+        perfil = PerfilCliente(
+            actividad_declarada=data.get("actividad_economica", "SIN_ACTIVIDAD"),
+            ingresos_anuales_declarados_usd=Decimal(str(data.get("ingresos_anuales_usd", 0))),
+            patrimonio_declarado_usd=Decimal(str(data.get("patrimonio_declarado_usd", 0))),
+        )
+        analisis = analizar_fondos(extraccion, perfil)
+
+        resultado = {
+            "total_documentado_usd":     str(analisis.total_documentado_usd),
+            "total_perfil_usd":          str(analisis.total_perfil_usd),
+            "ratio_discrepancia":        analisis.ratio_discrepancia,
+            "bandera_incongruencia":     analisis.bandera_incongruencia,
+            "umbral_usado":              analisis.umbral_usado,
+            "descripcion_bandera":       analisis.descripcion_bandera,
+            "consistencia_perfil_origen": analisis.consistencia_perfil_origen,
+            "montos_confirmados":        analisis.montos_confirmados,
+            "metodo_extraccion":         extraccion.metodo_extraccion,
+            "confianza_extraccion":      extraccion.confianza,
+            "advertencias_extraccion":   extraccion.advertencias,
+            "timestamp_analisis":        analisis.timestamp_analisis,
+            "nota":                      analisis.nota,
+            "requiere_revision_humana":  True,
+            "decision_oficial_cumplimiento": None,
+        }
+        doc_ref.update({
+            "status":       "COMPLETADO",
+            "resultado":    resultado,
+            "procesado_en": firestore.SERVER_TIMESTAMP,
+        })
+        _descontar_creditos(db, uid, "senaclaft_fondos")
+        print(
+            f"[SENACLAFT FONDOS] {data.get('nombre_cliente','?')} — "
+            f"bandera={analisis.bandera_incongruencia} ratio={analisis.ratio_discrepancia} "
+            f"metodo={extraccion.metodo_extraccion}"
+        )
+    finally:
+        if archivo_local and os.path.exists(archivo_local):
+            os.unlink(archivo_local)
+
+
 def _verificar_ownership_tareas(db, uid: str, *task_ids: str) -> tuple[bool, str]:
     """
     Verifica que todas las tareas referenciadas pertenecen al mismo uid.
@@ -594,6 +656,8 @@ def main():
                         procesar_tarea_senaclaft_riesgo(db, doc_ref, data)
                     elif tipo == "senaclaft_ofac":
                         procesar_tarea_senaclaft_ofac(db, doc_ref, data)
+                    elif tipo == "senaclaft_fondos":
+                        procesar_tarea_senaclaft_fondos(db, doc_ref, data)
                     elif tipo == "senaclaft_legajo":
                         procesar_tarea_senaclaft_legajo(db, doc_ref, data)
                     else:

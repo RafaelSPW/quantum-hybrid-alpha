@@ -148,7 +148,7 @@
     <div class="inner">
       <div class="hero-label">Módulo 01 — E &nbsp;·&nbsp; SENACLAFT</div>
       <div class="hero-title">Compliance regulatorio<br><span>Ley 19.574 / Decreto 379/018 / Ley 20.469</span></div>
-      <div class="hero-desc">Herramientas directas para entidades obligadas ante SENACLAFT: evaluación de riesgo con la matriz de 7 factores ponderados y screening con listas de sanciones OFAC oficiales descargadas de fuentes oficiales (actualización periódica, caché 12h).</div>
+      <div class="hero-desc">Herramientas directas para entidades obligadas ante SENACLAFT: evaluación de riesgo con la matriz de 7 factores ponderados y screening con listas de sanciones OFAC oficiales descargadas de fuentes oficiales (actualización diaria, caché 24h).</div>
     </div>
   </div>
 
@@ -157,6 +157,7 @@
     <div class="tabs">
       <button class="tab-btn active" onclick="cambiarTab('riesgo', this)">Evaluación de Riesgo</button>
       <button class="tab-btn" onclick="cambiarTab('ofac', this)">Screening OFAC / PEP</button>
+      <button class="tab-btn" onclick="cambiarTab('fondos', this)">Origen de Fondos</button>
       <button class="tab-btn" onclick="cambiarTab('legajos', this)">Legajos</button>
     </div>
   </div>
@@ -370,7 +371,7 @@
 
         <div class="form-panel">
           <div class="form-title">Screening OFAC / PEP Directo</div>
-          <div class="form-sub">Búsqueda directa en listas OFAC SDN y Consolidada descargadas de treasury.gov. Incluye screening de indicadores PEP y medios adversos. Primera consulta puede tardar 15-30 s mientras se descargan las listas (se cachean por 12h).</div>
+          <div class="form-sub">Búsqueda directa en listas OFAC SDN y Consolidada. Incluye screening de indicadores PEP y medios adversos. Las listas se descargan una vez al día y se comparten entre todos los usuarios — la primera consulta del día puede tardar 15-30 s; las siguientes son instantáneas (caché 24h).</div>
 
           <form onsubmit="enviarSenaclaftOfac(event)">
             <div class="form-group">
@@ -411,7 +412,76 @@
     </div>
   </div>
 
-  <!-- TAB 3 — LEGAJOS -->
+  <!-- TAB 3 — ORIGEN DE FONDOS -->
+  <div id="tab-fondos" class="tab-panel">
+    <div class="page-content">
+      <div class="two-col">
+
+        <div class="form-panel">
+          <div class="form-title">Análisis de Origen de Fondos</div>
+          <div class="form-sub">Suba el documento financiero del cliente (extracto bancario, declaración jurada, balance). El sistema extrae los montos y evalúa la congruencia con el perfil declarado. Los montos extraídos son sugerencias — el oficial de cumplimiento debe verificarlos antes de incorporarlos al legajo.</div>
+
+          <form onsubmit="enviarSenaclaftFondos(event)">
+            <div class="form-row">
+              <div class="form-group">
+                <label>N° Cliente (opcional)</label>
+                <input id="sf-numero" type="text" placeholder="Ej: CLI-001" />
+              </div>
+              <div class="form-group">
+                <label>Nombre Cliente (opcional)</label>
+                <input id="sf-nombre" type="text" placeholder="Nombre completo" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Documento financiero <span style="color:#b02020">*</span></label>
+              <input id="sf-archivo" type="file" accept=".pdf,.jpg,.jpeg,.png" required style="padding:6px 8px;font-size:0.85rem" />
+              <div class="hint">PDF, JPG o PNG. Extracto bancario, balance, declaración jurada de origen de fondos.</div>
+            </div>
+
+            <div class="form-group">
+              <label>Actividad económica declarada</label>
+              <input id="sf-actividad" type="text" list="actividades-list" placeholder="Ej: JUBILADOS" />
+              <div class="hint">Actividad SENACLAFT del cliente — referencia para evaluar congruencia.</div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Ingresos anuales declarados (USD)</label>
+                <input id="sf-ingresos" type="number" min="0" step="100" placeholder="Ej: 24000" />
+                <div class="hint">Ingreso anual bruto declarado.</div>
+              </div>
+              <div class="form-group">
+                <label>Patrimonio declarado (USD)</label>
+                <input id="sf-patrimonio" type="number" min="0" step="1000" placeholder="Ej: 80000" />
+              </div>
+            </div>
+
+            <button type="submit" class="btn-submit">
+              Analizar Documento
+              <span class="credito-badge-form">30 créditos</span>
+            </button>
+            <div id="sf-estado" class="estado-msg"></div>
+          </form>
+
+          <div class="nota-reg" style="margin-top:20px">
+            Los montos extraídos automáticamente son orientativos. La ausencia de incongruencia numérica no implica licitud de los fondos. La determinación final es responsabilidad exclusiva del oficial de cumplimiento. — AHC Intelligence / SENACLAFT Ley 19.574.
+          </div>
+        </div>
+
+        <div class="result-panel">
+          <div id="sf-placeholder" class="result-placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3a5068" stroke-width="1.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            <span>Suba un documento financiero para analizar el origen de fondos.</span>
+          </div>
+          <div id="sf-resultado" style="display:none"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4 — LEGAJOS -->
   <div id="tab-legajos" class="tab-panel">
     <div class="page-content">
       <div style="max-width:1280px;margin:0 auto">
@@ -442,7 +512,7 @@
   <div class="status-bar">
     <div class="inner" style="display:flex;gap:32px;align-items:center">
       <div><span class="status-dot"></span>Procesador Cloud Run conectado</div>
-      <div><span class="status-dot"></span>Listas OFAC — caché 12h</div>
+      <div><span class="status-dot"></span>Listas OFAC — caché 24h · descarga única diaria</div>
       <div style="margin-left:auto;font-size:0.68rem;letter-spacing:1px;color:#3a5060">Ley 19.574 / Decreto 379/018 / Ley 20.469</div>
     </div>
   </div>
