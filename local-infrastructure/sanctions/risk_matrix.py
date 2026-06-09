@@ -149,9 +149,24 @@ class MatrizRiesgo:
         faltantes       = []
 
         for factor, tabla in mapa.items():
-            respuesta    = cliente.get(factor)
-            peso         = self.pesos[factor]
-            puntaje, ok  = self._puntaje(tabla, respuesta)
+            respuesta = cliente.get(factor)
+            peso      = self.pesos[factor]
+
+            # Factores de país admiten múltiples valores separados por coma.
+            # Se usa el de mayor riesgo (principio conservador SENACLAFT).
+            if tabla == "pais" and respuesta and "," in str(respuesta):
+                paises = [p.strip() for p in str(respuesta).split(",") if p.strip()]
+                max_pts, alguno_ok = None, False
+                for p in paises:
+                    p_val, p_ok = self._puntaje(tabla, p)
+                    if p_ok:
+                        alguno_ok = True
+                        if p_val is not None and (max_pts is None or p_val > max_pts):
+                            max_pts = p_val
+                puntaje, ok = (max_pts, alguno_ok) if alguno_ok else (None, False)
+                respuesta   = " / ".join(paises)  # normalizar para el detalle
+            else:
+                puntaje, ok = self._puntaje(tabla, respuesta)
 
             if not ok:
                 faltantes.append({"factor": factor, "respuesta_recibida": respuesta})
